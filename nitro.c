@@ -14,6 +14,12 @@
 uv_loop_t *loop;
 int controlsock;
 
+enum global_state {
+	GLBL_UP,
+	GLBL_WANT_SHUTDOWN,
+	GLBL_WANT_REBOOT,
+} global_state;
+
 enum process_state {
 	PROC_STOPPED = 1,
 	PROC_STARTING,
@@ -214,10 +220,12 @@ proc_cleanup(struct process *p)
 void
 process_step(struct process *p, enum process_events ev)
 {
-	printf("%d[%d] got %d\n", p->state, p->main.pid, ev);
+	printf("%d[%d] got %d %d\n", p->state, p->main.pid, ev, global_state);
 
 	switch (ev) {
 	case EVNT_WANT_UP:
+		if (global_state != GLBL_UP)
+			break;
 		switch (p->state) {
 		case PROC_STARTING:
 		case PROC_UP:
@@ -259,6 +267,8 @@ process_step(struct process *p, enum process_events ev)
 		break;
 
 	case EVNT_WANT_RESTART:
+		if (global_state != GLBL_UP)
+			break;
 		switch (p->state) {
 		case PROC_STARTING:
 		case PROC_UP:
@@ -336,8 +346,15 @@ process_step(struct process *p, enum process_events ev)
 			break;
 		}
 		break;
-
 	}
+}
+
+void
+do_shutdown(int state)
+{
+	global_state = state;
+	for (struct process *p = process_head; p; p = p->next)
+		process_step(p, EVNT_WANT_DOWN);
 }
 
 void
@@ -345,6 +362,9 @@ callback_signal(uv_signal_t *handle, int signum)
 {
 	switch (signum) {
 	case SIGINT:
+		do_shutdown(GLBL_WANT_SHUTDOWN);
+		break;
+
 	case SIGTERM:
 		uv_signal_stop(handle);
 		uv_stop(loop);
@@ -515,6 +535,12 @@ callback_control_socket(uv_poll_t *handle, int status, int events)
 		}
 		goto fail;
 	}
+	case 'S':
+		do_shutdown(GLBL_WANT_SHUTDOWN);
+		goto ok;
+	case 'R':
+		do_shutdown(GLBL_WANT_REBOOT);
+		goto ok;
 	default:
 		if (charsig(buf[0])) {
 			struct process *p = find_service(buf + 1);
@@ -555,6 +581,25 @@ load_services()
 		new_service(ent->d_name);
 
 	closedir(dir);
+}
+
+void callback_stop_check(uv_check_t *handle)
+{
+	if (global_state == GLBL_UP)
+		return;
+
+	int up = 0;
+	for (struct process *p = process_head; p; p = p->next) {
+		printf("DBG %s %d %d\n", p->name, p->main.pid, p->state);
+		if (!(p->state == PROC_STOPPED || p->state == PROC_FATAL))
+			up++;
+	}
+	if (up) {
+		printf("shutdown waiting for %d processes\n", up);
+		return;
+	}
+
+	uv_stop(loop);
 }
 
 int
@@ -602,6 +647,8 @@ main(int argc, char *argv[])
 	uv_pipe_open(&log_input, globallogfd[1]);
 	uv_read_start((uv_stream_t *)&log_pipe, fixed_log_buffer, read_log);
 
+	global_state = GLBL_UP;
+
 	load_services();
 
 	printf("nitro up at %d\n", getpid());
@@ -615,6 +662,10 @@ main(int argc, char *argv[])
 		else
 			process_step(p, EVNT_WANT_UP);
 	}
+
+	uv_check_t stop_check;
+	uv_check_init(loop, &stop_check);
+	uv_check_start(&stop_check, callback_stop_check);
 
 	uv_run(loop, UV_RUN_DEFAULT);
 
