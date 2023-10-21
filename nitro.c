@@ -1,3 +1,7 @@
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -8,6 +12,7 @@
 #include <uv.h>
 
 uv_loop_t *loop;
+int controlsock;
 
 enum process_state {
 	PROC_STOPPED = 1,
@@ -26,7 +31,7 @@ enum process_events {
 	EVNT_WANT_DOWN,
 	EVNT_WANT_RESTART,
 	EVNT_EXITED,
-	// EVNT_DIED,   health check failed
+	// EVNT_DIED,	health check failed
 };
 
 struct process {
@@ -56,7 +61,7 @@ callback_exit(uv_process_t *proc, int64_t exit_status, int term_signal)
 
 	disarm_timeout(p);
 
-	printf("pid %d exited with status %d and signal %d\n",
+	printf("pid %d exited with status %ld and signal %d\n",
 	    proc->pid, exit_status, term_signal);
 
 	// uv_close((uv_handle_t *)proc, 0);
@@ -149,7 +154,7 @@ proc_launch(struct process *p)
 	options.stdio_count = 3;
 	options.stdio = child_stdio;
 	options.exit_cb = callback_exit;
-	options.args = (char *[]){"./slowexit.rb", "20", (char*)0};
+	options.args = (const char *[]){"./slowexit.rb", "20", (char*)0};
 	options.file = options.args[0];
 
 	int r = uv_spawn(loop, &p->main, &options);
@@ -186,7 +191,7 @@ void
 proc_cleanup(struct process *p)
 {
 //	uv_close((uv_handle_t *)&p->main, 0);
-//      uv_close((uv_handle_t *)&p->log_pipe, 0);
+//	uv_close((uv_handle_t *)&p->log_pipe, 0);
 //	uv_close((uv_handle_t *)&p->timer, 0);
 	close(p->logfd[0]);
 	close(p->logfd[1]);
@@ -281,9 +286,9 @@ process_step(struct process *p, enum process_events ev)
 			p->state = PROC_STOPPED;
 			break;
 
-		case PROC_STOPPED:                /* can't happen */
-		case PROC_FATAL:                  /* can't happen */
-		case PROC_DELAY:                  /* can't happen */
+		case PROC_STOPPED:		  /* can't happen */
+		case PROC_FATAL:		  /* can't happen */
+		case PROC_DELAY:		  /* can't happen */
 			assert(!"invalid state transition");
 			break;
 		}
@@ -348,7 +353,7 @@ callback_signal(uv_signal_t *handle, int signum)
 }
 
 void
-fixed_log_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+fixed_log_buffer(uv_handle_t *, size_t suggested_size, uv_buf_t *buf)
 {
 	static char buffer[4096];
 	buf->base = buffer;
@@ -366,55 +371,77 @@ read_log(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 	if (nread == UV_EOF)
 		return;
 
-	printf("LOG READ %d\n", nread);
+	printf("LOG READ %ld\n", nread);
 	printf("LOG: %.*s\n", (int)nread, buf->base);
 }
 
 void
-alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
-{
-	buf->base = malloc(256);
-	buf->len = 256;
+open_control_socket() {
+	static const char default_sock[] = "/run/nitro/nitro.sock";
+	const char *path = getenv("NITRO_SOCK");
+	if (!path || !*path)
+		path = default_sock;
+
+	char *last_slash = strrchr(path, '/');
+	if (last_slash) {
+		char dir[PATH_MAX];
+		memcpy(dir, path, last_slash - path);
+		dir[last_slash - path] = 0;
+		mkdir(dir, 0700);
+		// ignore errors
+	}
+
+        struct sockaddr_un addr = { 0 };
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, path, sizeof addr.sun_path - 1);
+
+        controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
+        if (controlsock < 0) {
+                perror("nitro: socket");
+                exit(111);
+        }
+        unlink(path);
+        mode_t mask = umask(0077);
+        int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
+        umask(mask);
+        if (r < 0) {
+                perror("nitro: bind");
+                exit(111);
+        }
 }
 
 void
-write_done(uv_write_t *req, int status)
-{
-	free(req->data);
-	free(req);
-}
-
-void
-handle_command(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
-{
-	printf("read %d: %.*s\n", nread, (int)nread, buf->base);
-
-	uv_write_t *req = (uv_write_t *)malloc(sizeof(uv_write_t));
-	req->data = strdup("gotem\n");
-	const uv_buf_t b = uv_buf_init(req->data, 6);
-	uv_write((uv_write_t *)req, client, &b, 1, write_done);
-
-	free(buf->base);
-	uv_close((uv_handle_t *)client, free);
-	return;
-}
-
-void
-callback_new_connection(uv_stream_t *server, int status)
+callback_control_socket(uv_poll_t *handle, int status, int events)
 {
 	if (status < 0) {
-		fprintf(stderr, "New connection error %s\n", uv_strerror(status));
+		fprintf(stderr, "poll error: %s\n", uv_strerror(status));
 		return;
 	}
 
-	printf("new connection\n");
+        char buf[256];
+        struct sockaddr_un src;
+        socklen_t srclen;
+        ssize_t r = recvfrom(controlsock, buf, sizeof buf,
+	    MSG_DONTWAIT, (struct sockaddr *)&src, &srclen);
 
-	uv_pipe_t *client = (uv_pipe_t *)malloc(sizeof (uv_pipe_t));
-	uv_pipe_init(loop, client, 0);
-	int r = uv_accept(server, (uv_stream_t *)client);
-	assert(r == 0);
+	if (r == sizeof buf) {
+		printf("message truncated");
+	}
 
-	uv_read_start((uv_stream_t *)client, alloc_buffer, handle_command);
+	if (r < 0) {
+		if (errno == EAGAIN)
+			return;
+		printf("callback error: %m\n");
+		return;
+	}
+
+        printf("got %ld from %d [%d %d]\n", r, srclen, status, events);
+
+        if (srclen > 0) {
+                char reply[] = "hewwo!\n";
+                sendto(controlsock, reply, sizeof reply,
+		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
+        }
 }
 
 int
@@ -426,19 +453,14 @@ main()
 
 	uv_disable_stdio_inheritance();
 
-	uv_pipe_t server;
-	uv_pipe_init(loop, &server, 0);
+	open_control_socket();
 
-	int r;
-	unlink("/tmp/nitro.sock");
-	if ((r = uv_pipe_bind(&server, "/tmp/nitro.sock"))) {
-		fprintf(stderr, "Bind error %s\n", uv_err_name(r));
-		return 1;
-	}
-	if ((r = uv_listen((uv_stream_t *)&server, 128, callback_new_connection))) {
-		fprintf(stderr, "Listen error %s\n", uv_err_name(r));
-		return 2;
-	}
+	/* we use plain poll access for the control socket, so we can
+	   handle requests without any memory overhead.  */
+        uv_poll_t control_poll;
+        uv_poll_init(loop, &control_poll, controlsock);
+
+        uv_poll_start(&control_poll, UV_READABLE, callback_control_socket);
 
 	uv_signal_t sigusr1;
 	uv_signal_init(loop, &sigusr1);
