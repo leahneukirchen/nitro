@@ -35,7 +35,10 @@ enum process_events {
 };
 
 struct process {
+	struct process *next;
+
 	char name[64];
+	char tag[64];
 	uv_timer_t timer;
 	uv_process_t main;
 //	uv_process_t log;
@@ -47,6 +50,8 @@ struct process {
 	uv_write_t wr_handle;
 	char log_buffer[4096];
 };
+
+struct process *process_head;
 
 void disarm_timeout(struct process *p);
 void process_step(struct process *p, enum process_events ev);
@@ -112,18 +117,21 @@ read_proc_log(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 	struct process *p = stream->data;
 
 	if (nread < 0) {
-		printf("LOG ERROR: %s\n", strerror(-nread));
+		printf("LOG ERROR: %s\n", uv_strerror(nread));
 		return;
 	}
 	if (nread == UV_EOF)
 		return;
 
 	uv_buf_t b[] = {
-		{ .base = "Wrote: ", .len = 7 },
+		{ .base = p->tag, .len = strlen(p->tag) },
 		{ .base = buf->base, .len = nread },
 	};
 
+	/*
 	printf("isref: %d\n", uv_has_ref((uv_handle_t *)&p->wr_handle));
+	printf("got log: %.*s\n", nread, buf->base);
+	*/
 
 	uv_write(&p->wr_handle, (uv_stream_t *)&log_input, b, 2, done);
 }
@@ -154,8 +162,12 @@ proc_launch(struct process *p)
 	options.stdio_count = 3;
 	options.stdio = child_stdio;
 	options.exit_cb = callback_exit;
-	options.args = (const char *[]){"./slowexit.rb", "20", (char*)0};
-	options.file = options.args[0];
+
+	char path[1024];
+	snprintf(path, sizeof path, "%s/run", p->name);
+
+	options.args = (char *[]){path, 0};
+	options.file = path;
 
 	int r = uv_spawn(loop, &p->main, &options);
 	if (r) {
@@ -166,6 +178,8 @@ proc_launch(struct process *p)
 
 	p->start = uv_now(loop);
 	p->state = PROC_STARTING;
+	snprintf(p->tag, sizeof p->tag, "%s[%d]: ", p->name, p->main.pid);
+
 	arm_timeout(p, 100);
 }
 
@@ -326,29 +340,15 @@ process_step(struct process *p, enum process_events ev)
 	}
 }
 
-struct process mainproc;
-
 void
 callback_signal(uv_signal_t *handle, int signum)
 {
 	switch (signum) {
 	case SIGINT:
+	case SIGTERM:
 		uv_signal_stop(handle);
 		uv_stop(loop);
 		break;
-
-	case SIGUSR1:
-		process_step(&mainproc, EVNT_WANT_UP);
-		break;
-	case SIGUSR2:
-		process_step(&mainproc, EVNT_WANT_DOWN);
-		break;
-	case SIGWINCH:
-		process_step(&mainproc, EVNT_WANT_RESTART);
-		break;
-
-	default:
-		/* ignore */
 	}
 }
 
@@ -364,15 +364,14 @@ void
 read_log(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
 	if (nread < 0) {
-		printf("LOG ERROR: %s\n", strerror(-nread));
+		fprintf(stderr, "log error: %s\n", uv_strerror(nread));
 		uv_read_stop(stream);
 		return;
 	}
 	if (nread == UV_EOF)
 		return;
 
-	printf("LOG READ %ld\n", nread);
-	printf("LOG: %.*s\n", (int)nread, buf->base);
+	printf("LOG: %.*s", (int)nread, buf->base);
 }
 
 void
@@ -391,23 +390,73 @@ open_control_socket() {
 		// ignore errors
 	}
 
-        struct sockaddr_un addr = { 0 };
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, path, sizeof addr.sun_path - 1);
+	struct sockaddr_un addr = { 0 };
+	addr.sun_family = AF_UNIX;
+	strncpy(addr.sun_path, path, sizeof addr.sun_path - 1);
 
-        controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (controlsock < 0) {
-                perror("nitro: socket");
-                exit(111);
-        }
-        unlink(path);
-        mode_t mask = umask(0077);
-        int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
-        umask(mask);
-        if (r < 0) {
-                perror("nitro: bind");
-                exit(111);
-        }
+	controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
+	if (controlsock < 0) {
+		perror("nitro: socket");
+		exit(111);
+	}
+	unlink(path);
+	mode_t mask = umask(0077);
+	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
+	umask(mask);
+	if (r < 0) {
+		perror("nitro: bind");
+		exit(111);
+	}
+}
+
+struct process *
+new_service(char *name)
+{
+	struct stat st;
+	if (name[0] == '.')
+		return 0;
+	if (stat(name, &st) < 0)	     /* we are in SVDIR */
+		return 0;
+	if (!S_ISDIR(st.st_mode))
+		return 0;
+
+	struct process *p = calloc(sizeof (struct process), 1);
+	strcpy(p->name, name);
+	p->state = PROC_DELAY;
+
+	p->next = process_head;
+	process_head = p;
+
+	return p;
+}
+
+struct process *
+find_service(char *name)
+{
+	for (struct process *p = process_head; p; p = p->next)
+		if (strcmp(p->name, name) == 0)
+			return p;
+
+	return new_service(name);
+}
+
+int
+charsig(char c)
+{
+	switch (c) {
+	case 'p': return SIGSTOP;
+	case 'c': return SIGCONT;
+	case 'h': return SIGHUP;
+	case 'a': return SIGALRM;
+	case 'i': return SIGINT;
+	case 'q': return SIGQUIT;
+	case '1': return SIGUSR1;
+	case '2': return SIGUSR2;
+	case 't': return SIGTERM;
+	case 'k': return SIGKILL;
+	}
+
+	return 0;
 }
 
 void
@@ -418,10 +467,10 @@ callback_control_socket(uv_poll_t *handle, int status, int events)
 		return;
 	}
 
-        char buf[256];
-        struct sockaddr_un src;
-        socklen_t srclen;
-        ssize_t r = recvfrom(controlsock, buf, sizeof buf,
+	char buf[256];
+	struct sockaddr_un src;
+	socklen_t srclen;
+	ssize_t r = recvfrom(controlsock, buf, sizeof buf,
 	    MSG_DONTWAIT, (struct sockaddr *)&src, &srclen);
 
 	if (r == sizeof buf) {
@@ -435,48 +484,115 @@ callback_control_socket(uv_poll_t *handle, int status, int events)
 		return;
 	}
 
-        printf("got %ld from %d [%d %d]\n", r, srclen, status, events);
+	printf("got %ld from %d [%d %d]\n", r, srclen, status, events);
 
-        if (srclen > 0) {
-                char reply[] = "hewwo!\n";
-                sendto(controlsock, reply, sizeof reply,
+	if (r == 0)
+		return;
+
+	// chop trailing newline
+	if (buf[strlen(buf) - 1] == '\n')
+		buf[strlen(buf) - 1] = 0;
+
+	switch (buf[0]) {
+	case 'l':
+		for (struct process *p = process_head; p; p = p->next) {
+			printf("%s[%d] %d\n", p->name, p->main.pid, p->state);
+		}
+		goto ok;
+	case 'u':
+	case 'd':
+	case 'r':
+	{
+		struct process *p = find_service(buf + 1);
+		if (p) {
+			if (buf[0] == 'u')
+			    process_step(p, EVNT_WANT_UP);
+			else if (buf[0] == 'd')
+			    process_step(p, EVNT_WANT_DOWN);
+			else if (buf[0] == 'r')
+			    process_step(p, EVNT_WANT_RESTART);
+			goto ok;
+		}
+		goto fail;
+	}
+	default:
+		if (charsig(buf[0])) {
+			struct process *p = find_service(buf + 1);
+			if (p && p->main.pid) {
+				kill(p->main.pid, charsig(buf[0]));
+				goto ok;
+			}
+		}
+		goto fail;
+	}
+
+
+ok:
+	if (srclen > 0) {
+		char reply[] = "ok\n";
+		sendto(controlsock, reply, sizeof reply,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
-        }
+	}
+	return;
+
+fail:
+	if (srclen > 0) {
+		char reply[] = "error\n";
+		sendto(controlsock, reply, sizeof reply,
+		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
+	}
+}
+
+void
+load_services()
+{
+	DIR *dir = opendir(".");
+	if (!dir)
+		abort();
+
+	struct dirent *ent;
+	while ((ent = readdir(dir)))
+		new_service(ent->d_name);
+
+	closedir(dir);
 }
 
 int
-main()
+main(int argc, char *argv[])
 {
-	signal(SIGPIPE, SIG_IGN);
+	if (argc < 1)
+		return 111;
 
 	loop = uv_default_loop();
-
 	uv_disable_stdio_inheritance();
+
+	const char *dir = "/var/service";
+	if (argc == 2)
+		dir = argv[1];
+
+	if (chdir(dir) < 0) {
+		perror("nitro: chdir");
+		return 111;
+	}
+
+	signal(SIGPIPE, SIG_IGN);
+
+	uv_signal_t sigterm;
+	uv_signal_init(loop, &sigterm);
+	uv_signal_start(&sigterm, callback_signal, SIGTERM);
+
+	uv_signal_t sigint;
+	uv_signal_init(loop, &sigint);
+	uv_signal_start(&sigint, callback_signal, SIGINT);
 
 	open_control_socket();
 
 	/* we use plain poll access for the control socket, so we can
 	   handle requests without any memory overhead.  */
-        uv_poll_t control_poll;
-        uv_poll_init(loop, &control_poll, controlsock);
+	uv_poll_t control_poll;
+	uv_poll_init(loop, &control_poll, controlsock);
 
-        uv_poll_start(&control_poll, UV_READABLE, callback_control_socket);
-
-	uv_signal_t sigusr1;
-	uv_signal_init(loop, &sigusr1);
-	uv_signal_start(&sigusr1, callback_signal, SIGUSR1);
-
-	uv_signal_t sigusr2;
-	uv_signal_init(loop, &sigusr2);
-	uv_signal_start(&sigusr2, callback_signal, SIGUSR2);
-
-	uv_signal_t sigwinch;
-	uv_signal_init(loop, &sigwinch);
-	uv_signal_start(&sigwinch, callback_signal, SIGWINCH);
-
-	uv_signal_t sigint;
-	uv_signal_init(loop, &sigint);
-	uv_signal_start(&sigint, callback_signal, SIGINT);
+	uv_poll_start(&control_poll, UV_READABLE, callback_control_socket);
 
 	uv_pipe(globallogfd, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE);
 	uv_pipe_t log_pipe;
@@ -486,9 +602,19 @@ main()
 	uv_pipe_open(&log_input, globallogfd[1]);
 	uv_read_start((uv_stream_t *)&log_pipe, fixed_log_buffer, read_log);
 
-	proc_launch(&mainproc);
+	load_services();
 
 	printf("nitro up at %d\n", getpid());
+
+	for (struct process *p = process_head; p; p = p->next) {
+		char path[1024];
+		struct stat st;
+		snprintf(path, sizeof path, "%s/down", p->name);
+		if (stat(path, &st))
+			process_step(p, EVNT_WANT_DOWN);
+		else
+			process_step(p, EVNT_WANT_UP);
+	}
 
 	uv_run(loop, UV_RUN_DEFAULT);
 
