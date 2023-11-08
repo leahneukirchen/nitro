@@ -1,5 +1,4 @@
 CFLAGS=-g -O2 -Wall -Wno-unused-parameter -Wextra -Wwrite-strings
-LDLIBS=-luv
 
 ALL=nitro
 
