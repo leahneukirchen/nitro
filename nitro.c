@@ -12,6 +12,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -72,6 +73,27 @@ int globallog[2];
 
 volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
+
+char *
+steprn(char *dst, char *end, const char *fmt, ...)
+{
+	if (dst >= end)
+		return end;
+
+	va_list ap;
+	va_start(ap, fmt);
+	int r = vsnprintf(dst, end - dst, fmt, ap);
+	va_end(ap);
+
+	if (r < 0) {
+		/* snprintf only fails for silly reasons:
+		   truncate what was written, behave as noop.  */
+		*dst = 0;
+		return dst;
+	}
+
+	return r > end - dst ? end : dst + r;
+}
 
 void
 proc_launch(int i)
@@ -520,6 +542,23 @@ charsig(char c)
 	}
 }
 
+const char *
+proc_state_str(enum process_state state)
+{
+	switch (state) {
+	case PROC_STOPPED: return "STOPPED";
+	case PROC_STARTING: return "STARTING";
+	case PROC_UP: return "UP";
+	case PROC_DEAD: return "DEAD";
+	case PROC_SHUTDOWN: return "SHUTDOWN";
+	case PROC_RESTART: return "RESTART";
+	case PROC_FATAL: return "FATAL";
+	case PROC_DELAY: return "DELAY";
+	}
+
+	assert(!"unreachable");
+};
+
 void
 handle_control_sock() {
 	char buf[256];
@@ -551,10 +590,30 @@ handle_control_sock() {
 
 	switch (buf[0]) {
 	case 'l':
+	{
+		char replybuf[4096];
+		char *replyend = replybuf + sizeof replybuf;
+		char *reply = replybuf;
+		deadline now = time_now();
+
 		for (int i = 0; i < max_service; i++) {
-			printf(":: %s[%d] %d\n", services[i].name, services[i].pid, services[i].state);
+			if (services[i].pid)
+				reply = steprn(reply, replyend, "%s %s (pid %d) %ds\n",
+				    proc_state_str(services[i].state),
+				    services[i].name,
+				    services[i].pid,
+				    (now - services[i].startstop) / 1000);
+			else
+				reply = steprn(reply, replyend, "%s %s %ds\n",
+				    proc_state_str(services[i].state),
+				    services[i].name,
+				    (now - services[i].startstop) / 1000);
 		}
-		goto ok;
+
+		sendto(controlsock, replybuf, reply - replybuf,
+		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
+		return;
+	}
 	case 's':
 		want_rescan = 1;
 		goto ok;
