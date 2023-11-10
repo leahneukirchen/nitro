@@ -34,7 +34,7 @@ enum global_state {
 } global_state;
 
 enum process_state {
-	PROC_STOPPED = 1,
+	PROC_DOWN = 1,
 	PROC_STARTING,
 	PROC_UP,
 	PROC_DEAD,
@@ -184,7 +184,7 @@ proc_cleanup(int i)
 	services[i].pid = 0;
 	services[i].timeout = 0;
 	services[i].deadline = 0;
-	services[i].state = PROC_STOPPED;
+	services[i].state = PROC_DOWN;
 	services[i].startstop = time_now();
 
 	if (global_state != GLBL_UP) {
@@ -229,7 +229,7 @@ process_step(int i, enum process_events ev)
 			services[i].state = PROC_RESTART;
 			break;
 
-		case PROC_STOPPED:
+		case PROC_DOWN:
 		case PROC_FATAL:
 		case PROC_DELAY:
 			proc_launch(i);
@@ -249,11 +249,11 @@ process_step(int i, enum process_events ev)
 
 		case PROC_FATAL:
 		case PROC_DELAY:
-			services[i].state = PROC_STOPPED;
+			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 			services[i].deadline = 0;
 
-		case PROC_STOPPED:
+		case PROC_DOWN:
 			/* ignore, is down */
 			break;
 		}
@@ -272,7 +272,7 @@ process_step(int i, enum process_events ev)
 			services[i].state = PROC_RESTART;
 			break;
 
-		case PROC_STOPPED:
+		case PROC_DOWN:
 		case PROC_FATAL:
 		case PROC_DELAY:
 			proc_launch(i);
@@ -307,7 +307,7 @@ process_step(int i, enum process_events ev)
 			proc_zap(i);
 			break;
 
-		case PROC_STOPPED:                /* can't happen */
+		case PROC_DOWN:                /* can't happen */
 		case PROC_FATAL:                  /* can't happen */
 		case PROC_DELAY:                  /* can't happen */
 			assert(!"invalid state transition");
@@ -338,7 +338,7 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_UP:
-		case PROC_STOPPED:
+		case PROC_DOWN:
 		case PROC_FATAL:
 			assert(!"invalid timeout handler");
 			break;
@@ -444,7 +444,7 @@ rescan(int first)
 		if (first) {
 			snprintf(buf, sizeof buf, "%s/down", name);
 			if (stat(buf, &st) == 0) {
-				services[i].state = PROC_STOPPED;
+				services[i].state = PROC_DOWN;
 				services[i].timeout = 0;
 			}
 		}
@@ -546,7 +546,7 @@ const char *
 proc_state_str(enum process_state state)
 {
 	switch (state) {
-	case PROC_STOPPED: return "STOPPED";
+	case PROC_DOWN: return "DOWN";
 	case PROC_STARTING: return "STARTING";
 	case PROC_UP: return "UP";
 	case PROC_DEAD: return "DEAD";
@@ -820,7 +820,7 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 			int uplog = 0;
 			for (i = 0; i < max_service; i++) {
 				printf("DBG %s %d %d\n", services[i].name, services[i].pid, services[i].state);
-				if (!(services[i].state == PROC_STOPPED ||
+				if (!(services[i].state == PROC_DOWN ||
 				    services[i].state == PROC_FATAL)) {
 					up++;
 					if (services[i].islog)
