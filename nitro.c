@@ -523,7 +523,7 @@ void
 handle_control_sock() {
 	char buf[256];
 	struct sockaddr_un src;
-	socklen_t srclen = 0;
+	socklen_t srclen = sizeof src;
 	ssize_t r = recvfrom(controlsock, buf, sizeof buf,
 	    MSG_DONTWAIT, (struct sockaddr *)&src, &srclen);
 
