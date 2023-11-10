@@ -37,7 +37,6 @@ enum process_state {
 	PROC_DOWN = 1,
 	PROC_STARTING,
 	PROC_UP,
-	PROC_DEAD,
 	PROC_SHUTDOWN,
 	PROC_RESTART,
 	PROC_FATAL,
@@ -220,7 +219,6 @@ process_step(int i, enum process_events ev)
 		switch (services[i].state) {
 		case PROC_STARTING:
 		case PROC_UP:
-		case PROC_DEAD:
 		case PROC_RESTART:
 			/* ignore, is up */
 			break;
@@ -241,7 +239,6 @@ process_step(int i, enum process_events ev)
 		switch (services[i].state) {
 		case PROC_STARTING:
 		case PROC_UP:
-		case PROC_DEAD:
 		case PROC_RESTART:
 		case PROC_SHUTDOWN:
 			proc_shutdown(i);
@@ -265,7 +262,6 @@ process_step(int i, enum process_events ev)
 		switch (services[i].state) {
 		case PROC_STARTING:
 		case PROC_UP:
-		case PROC_DEAD:
 		case PROC_RESTART:
 		case PROC_SHUTDOWN:
 			proc_shutdown(i);
@@ -294,7 +290,6 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_UP:
-		case PROC_DEAD:
 		case PROC_RESTART:
 			proc_cleanup(i);
 			if (global_state != GLBL_UP)
@@ -326,10 +321,6 @@ process_step(int i, enum process_events ev)
 
 		case PROC_STARTING:
 			services[i].state = PROC_UP;
-			break;
-
-		case PROC_DEAD:
-			proc_shutdown(i);
 			break;
 
 		case PROC_RESTART:
@@ -549,7 +540,6 @@ proc_state_str(enum process_state state)
 	case PROC_DOWN: return "DOWN";
 	case PROC_STARTING: return "STARTING";
 	case PROC_UP: return "UP";
-	case PROC_DEAD: return "DEAD";
 	case PROC_SHUTDOWN: return "SHUTDOWN";
 	case PROC_RESTART: return "RESTART";
 	case PROC_FATAL: return "FATAL";
