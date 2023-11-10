@@ -17,7 +17,7 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef int64_t deadline;		/* milliseconds since epoch */
+typedef int64_t deadline;		/* milliseconds since boot */
 
 deadline time_now()
 {
@@ -54,7 +54,7 @@ enum process_events {
 
 struct service {
 	char name[64];
-	deadline start;
+	time_t start;
 	deadline deadline;
 	int timeout;
 	pid_t pid;
@@ -118,7 +118,7 @@ proc_launch(int i)
 
 		services[i].state = PROC_FATAL;
 		services[i].pid = 0;
-		services[i].start = time_now();
+		services[i].start = time(0);
 		services[i].timeout = 0;
 		services[i].deadline = 0;
 		return;
@@ -126,7 +126,7 @@ proc_launch(int i)
 	close(alivepipefd[0]);
 
 	services[i].pid = child;
-	services[i].start = time_now();
+	services[i].start = time(0);
 	services[i].state = PROC_STARTING;
 	services[i].timeout = 2000;
 	services[i].deadline = 0;
@@ -262,22 +262,21 @@ process_step(int i, enum process_events ev)
 		services[i].deadline = 0;
 		switch (services[i].state) {
 		case PROC_STARTING:
+			proc_cleanup(i);
+			if (global_state != GLBL_UP)
+				break;
+			services[i].state = PROC_DELAY;
+			services[i].timeout = 1000;
+			services[i].deadline = 0;
+			break;
+
 		case PROC_UP:
 		case PROC_DEAD:
 		case PROC_RESTART:
 			proc_cleanup(i);
 			if (global_state != GLBL_UP)
 				break;
-
-			// XXX check too many restarts
-			deadline now = time_now();
-			if (now - services[i].start > 2000) {
-				proc_launch(i);
-			} else {
-				services[i].state = PROC_DELAY;
-				services[i].timeout = 1000;
-				services[i].deadline = 0;
-			}
+			proc_launch(i);
 			break;
 
 		case PROC_SHUTDOWN:
@@ -303,7 +302,6 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_STARTING:
-			/* detect failed start */
 			services[i].state = PROC_UP;
 			break;
 
