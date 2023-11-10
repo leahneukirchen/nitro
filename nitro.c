@@ -54,7 +54,7 @@ enum process_events {
 
 struct service {
 	char name[64];
-	time_t start;
+	deadline start;
 	deadline deadline;
 	int timeout;
 	pid_t pid;
@@ -118,7 +118,7 @@ proc_launch(int i)
 
 		services[i].state = PROC_FATAL;
 		services[i].pid = 0;
-		services[i].start = time(0);
+		services[i].start = time_now();
 		services[i].timeout = 0;
 		services[i].deadline = 0;
 		return;
@@ -126,7 +126,7 @@ proc_launch(int i)
 	close(alivepipefd[0]);
 
 	services[i].pid = child;
-	services[i].start = time(0);
+	services[i].start = time_now();
 	services[i].state = PROC_STARTING;
 	services[i].timeout = 2000;
 	services[i].deadline = 0;
