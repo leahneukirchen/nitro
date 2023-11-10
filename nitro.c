@@ -654,24 +654,16 @@ main(int argc, char *argv[])
 
 	sigset_t allset;
 	sigfillset(&allset);
-	sigaction(SIGCHLD, &(struct sigaction){
+	struct sigaction sa = {
 		.sa_handler = on_signal,
 		.sa_mask = allset,
 		.sa_flags = SA_NOCLDSTOP | SA_RESTART,
-	}, 0);
-	sigaction(SIGHUP, &(struct sigaction){
-		.sa_handler = on_signal,
-		.sa_mask = allset,
-	}, 0);
-	sigaction(SIGINT, &(struct sigaction){
-		.sa_handler = on_signal,
-		.sa_mask = allset,
-	}, 0);
+	};
+	sigaction(SIGCHLD, &sa, 0);
+	sigaction(SIGHUP, &sa, 0);
+	sigaction(SIGINT, &sa, 0);
 /* for debugging
-	sigaction(SIGTERM, &(struct sigaction){
-		.sa_handler = on_signal,
-		.sa_mask = allset,
-	}, 0);
+	sigaction(SIGTERM, &sa, 0);
 */
 
 	open_control_socket();
