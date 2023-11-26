@@ -69,6 +69,7 @@ int controlsock;
 int nullfd;
 int selfpipe[2];
 int globallog[2];
+DIR *cwd;
 
 volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
@@ -402,12 +403,9 @@ rescan(int first)
 	for (i = 0; i < max_service; i++)
 		services[i].seen = 0;
 
-	DIR *dir = opendir(".");
-	if (!dir)
-	       abort();
-
 	struct dirent *ent;
-	while ((ent = readdir(dir))) {
+	rewinddir(cwd);
+	while ((ent = readdir(cwd))) {
 		char *name = ent->d_name;
 		struct stat st;
 
@@ -456,7 +454,6 @@ rescan(int first)
 			}
 		}
 	}
-	closedir(dir);
 
 	for (i = 0; i < max_service; i++)
 		if (!services[i].seen)
@@ -680,7 +677,14 @@ main(int argc, char *argv[])
 {
 	int i;
 
-	chdir(argv[1]);
+	if (chdir(argv[1]) < 0) {
+		perror("chdir");
+		exit(111);
+	}
+
+	cwd = opendir(".");
+	if (!cwd)
+		abort();
 
 	nullfd = open("/dev/null", O_RDONLY | O_CLOEXEC);
 	if (nullfd < 0) {
