@@ -37,6 +37,7 @@ enum process_state {
 	PROC_DOWN = 1,
 	PROC_STARTING,
 	PROC_UP,
+	PROC_ONESHOT,
 	PROC_SHUTDOWN,
 	PROC_RESTART,
 	PROC_FATAL,
@@ -95,9 +96,30 @@ steprn(char *dst, char *end, const char *fmt, ...)
 	return r > end - dst ? end : dst + r;
 }
 
+int
+stat_slash(const char *dir, const char *name, struct stat *st)
+{
+	char buf[PATH_MAX];
+
+	snprintf(buf, sizeof buf, "%s/%s", dir, name);
+
+	return stat(buf, st);
+}
+
 void
 proc_launch(int i)
 {
+	struct stat st;
+	if (stat_slash(services[i].name, "run", &st) < 0 && errno == ENOENT) {
+		services[i].pid = 0;
+		services[i].startstop = time_now();
+		services[i].state = PROC_ONESHOT;
+		services[i].timeout = 0;
+		services[i].deadline = 0;
+
+		return;
+	}
+
 	unsigned char status;
 	int alivepipefd[2];
 	if (pipe(alivepipefd) < 0)
@@ -218,6 +240,7 @@ process_step(int i, enum process_events ev)
 		if (global_state != GLBL_UP)
 			break;
 		switch (services[i].state) {
+		case PROC_ONESHOT:
 		case PROC_STARTING:
 		case PROC_UP:
 		case PROC_RESTART:
@@ -247,6 +270,7 @@ process_step(int i, enum process_events ev)
 
 		case PROC_FATAL:
 		case PROC_DELAY:
+		case PROC_ONESHOT:
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 			services[i].deadline = 0;
@@ -267,6 +291,12 @@ process_step(int i, enum process_events ev)
 		case PROC_SHUTDOWN:
 			proc_shutdown(i);
 			services[i].state = PROC_RESTART;
+			break;
+
+		case PROC_ONESHOT:
+			services[i].state = PROC_DELAY;
+			services[i].timeout = 1000;
+			services[i].deadline = 0;
 			break;
 
 		case PROC_DOWN:
@@ -304,8 +334,9 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_DOWN:                /* can't happen */
-		case PROC_FATAL:                  /* can't happen */
-		case PROC_DELAY:                  /* can't happen */
+		case PROC_FATAL:	       /* can't happen */
+		case PROC_DELAY:	       /* can't happen */
+		case PROC_ONESHOT:	       /* can't happen */
 			assert(!"invalid state transition");
 			break;
 		}
@@ -332,6 +363,7 @@ process_step(int i, enum process_events ev)
 		case PROC_UP:
 		case PROC_DOWN:
 		case PROC_FATAL:
+		case PROC_ONESHOT:
 			assert(!"invalid timeout handler");
 			break;
 		}
@@ -428,20 +460,15 @@ rescan(int first)
 			fcntl(globallog[1], F_SETFD, FD_CLOEXEC);
 		}
 
-		char buf[PATH_MAX];
-
-		if (first) {
-			snprintf(buf, sizeof buf, "%s/down", name);
-			if (stat(buf, &st) == 0) {
-				services[i].state = PROC_DOWN;
-				services[i].timeout = 0;
-			}
+		if (first && stat_slash(name, "down", &st) == 0) {
+			services[i].state = PROC_DOWN;
+			services[i].timeout = 0;
 		}
 
+		char buf[PATH_MAX];
 		snprintf(buf, sizeof buf, "%s/log", name);
-		printf("buf=%s\n" ,buf);
 
-		if (stat(buf, &st) == 0 && S_ISDIR(st.st_mode)) {
+		if (stat_slash(name, "log", &st) == 0 && S_ISDIR(st.st_mode)) {
 			printf("SCAN %s\n", buf);
 			int j = add_service(buf);
 			services[j].islog = 1;
@@ -541,6 +568,7 @@ proc_state_str(enum process_state state)
 	case PROC_RESTART: return "RESTART";
 	case PROC_FATAL: return "FATAL";
 	case PROC_DELAY: return "DELAY";
+	case PROC_ONESHOT: return "ONESHOT";
 	}
 
 	assert(!"unreachable");
