@@ -29,12 +29,13 @@ deadline time_now()
 }
 
 enum log_format {
-	LOGF_PLAIN,
+	LOGF_PLAIN = 1,
 	LOGF_KMSG,
 	LOGF_TIME,
 	LOGF_TAI64N,
 	// LOGF_NONE?
-} log_format = LOGF_TAI64N;
+};
+int log_format = LOGF_TIME;	/* when negative: use external logger */
 
 enum global_state {
 	GLBL_UP,
@@ -144,7 +145,6 @@ proc_launch(int i)
 		chdir(services[i].name);
 
 		if (strcmp(services[i].name, "LOG") == 0) {
-			assert(!"nyi");
 			dup2(globallog[0], 0);
 			dup2(1, 2);
 		} else if (services[i].islog) {
@@ -182,6 +182,9 @@ proc_launch(int i)
 	}
 	close(alivepipefd[0]);
 
+	if (strcmp(services[i].name, "LOG") == 0)
+		log_format = -log_format;
+
 	services[i].pid = child;
 	services[i].startstop = time_now();
 	services[i].state = PROC_STARTING;
@@ -194,6 +197,9 @@ proc_shutdown(int i)
 {
 	if (services[i].pid)
 		kill(services[i].pid, SIGTERM);
+
+	if (strcmp(services[i].name, "LOG") == 0)
+		log_format = -log_format;
 
 	if (services[i].state != PROC_SHUTDOWN &&
 	    services[i].state != PROC_RESTART) {
@@ -787,8 +793,6 @@ read_global_log(int fd)
 		memmove(logbuf, linestart, logbufend - logbuf);
 		logbufend -= linestart - logbuf;
 	}
-
-	printf("logbufsize: %d\n", (int)(logbufend - logbuf));
 }
 
 #define CHLD 0
@@ -911,6 +915,8 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 
 		printf("poll(timeout=%d)\n", timeout);
 
+		fds[GLOG].fd = (log_format < 0) ? -1 : globallog[0];
+		printf("LOGF=%d GLOGFD=%d\n", log_format, fds[GLOG].fd);
 		poll(fds, sizeof fds / sizeof fds[0], timeout);
 
 		if (fds[CHLD].revents & POLLIN) {
