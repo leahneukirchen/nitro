@@ -11,10 +11,11 @@
 #include <limits.h>
 #include <poll.h>
 #include <signal.h>
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -26,6 +27,14 @@ deadline time_now()
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
 }
+
+enum log_format {
+	LOGF_PLAIN,
+	LOGF_KMSG,
+	LOGF_TIME,
+	LOGF_TAI64N,
+	// LOGF_NONE?
+} log_format = LOGF_TAI64N;
 
 enum global_state {
 	GLBL_UP,
@@ -70,7 +79,10 @@ int controlsock;
 int nullfd;
 int selfpipe[2];
 int globallog[2];
+int globaloutfd = 2;
 DIR *cwd;
+char logbuf[4096];
+char *logbufend = logbuf;
 
 volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
@@ -132,6 +144,7 @@ proc_launch(int i)
 		chdir(services[i].name);
 
 		if (strcmp(services[i].name, "LOG") == 0) {
+			assert(!"nyi");
 			dup2(globallog[0], 0);
 			dup2(1, 2);
 		} else if (services[i].islog) {
@@ -452,14 +465,6 @@ rescan(int first)
 
 		int i = add_service(name);
 
-		if (strcmp(name, "LOG") == 0 && globallog[0] == -1) {
-			printf("making global pipe\n");
-			pipe(globallog);
-			fcntl(globallog[1], F_SETFL, O_NONBLOCK);
-			fcntl(globallog[0], F_SETFD, FD_CLOEXEC);
-			fcntl(globallog[1], F_SETFD, FD_CLOEXEC);
-		}
-
 		if (first && stat_slash(name, "down", &st) == 0) {
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
@@ -681,10 +686,6 @@ fail:
 	}
 }
 
-
-#define CHLD 0
-#define CTRL 1
-
 void
 has_died(pid_t pid, int status)
 {
@@ -699,6 +700,100 @@ has_died(pid_t pid, int status)
 		// XXX handle logger?
 	}
 }
+
+void
+write_global_log(char *log, size_t ulen)
+{
+	int len = ulen;
+
+	switch (log_format) {
+	case LOGF_PLAIN:
+		dprintf(globaloutfd, "%.*s\n", len, log);
+		break;
+	case LOGF_KMSG: {
+		// printk keeps track of time, we just need facility and level.
+		// printk doesn't like dprintf using lseek etc, so do a single
+		// write.
+		char buf[4096];
+		int r = snprintf(buf, sizeof buf,
+		    "<%d>nitro: %.*s\n", LOG_DAEMON | LOG_NOTICE, len, log);
+		write(globaloutfd, buf, r);
+		break;
+	}
+	case LOGF_TIME: {
+		struct timespec now;
+		clock_gettime(CLOCK_REALTIME, &now);
+		struct tm *tms = gmtime(&now.tv_sec);
+		int usec10 = (int)now.tv_nsec / 10000;
+
+		dprintf(globaloutfd,
+		    "%04d-%02d-%02dT%02d:%02d:%02d.%05d %.*s\n",
+		    tms->tm_year + 1900,
+		    tms->tm_mon + 1,
+		    tms->tm_mday,
+		    tms->tm_hour,
+		    tms->tm_min,
+		    tms->tm_sec,
+		    usec10,
+		    len,
+		    log);
+		break;
+	}
+	case LOGF_TAI64N: {
+		struct timespec now;
+		clock_gettime(CLOCK_REALTIME, &now);
+		dprintf(globaloutfd,
+		    "@%016llx.%08lx %.*s\n",
+		    (unsigned long long)now.tv_sec + 0x400000000000000aULL,
+		    (unsigned long)now.tv_nsec,
+		    len,
+		    log);
+		break;
+	}
+	}
+}
+
+void
+read_global_log(int fd)
+{
+	size_t maxlen = logbuf + sizeof logbuf - logbufend;
+	ssize_t l = read(fd, logbufend, maxlen);
+	printf("read %ld of %ld: |%.*s|\n", l, maxlen,
+	    (int)l, logbufend);
+
+	if (l == 0)
+		return;
+
+	if (l < 0)
+		abort();
+
+	logbufend += l;
+
+	char *linestart;
+	char *lineend;
+	for (linestart = logbuf;
+	     (lineend = memchr(linestart, '\n',
+		 sizeof logbuf - (linestart - logbuf)));
+	     linestart = lineend + 1) {
+		write_global_log(linestart, lineend - linestart);
+	}
+
+	if (linestart == logbuf) {
+		if ((int)l == (int)maxlen) {
+			write_global_log(logbuf, sizeof logbuf);
+			logbufend = logbuf;
+		}
+	} else {
+		memmove(logbuf, linestart, logbufend - logbuf);
+		logbufend -= linestart - logbuf;
+	}
+
+	printf("logbufsize: %d\n", (int)(logbufend - logbuf));
+}
+
+#define CHLD 0
+#define CTRL 1
+#define GLOG 2
 
 int
 main(int argc, char *argv[])
@@ -725,14 +820,26 @@ main(int argc, char *argv[])
 		close(fd[1]);
 	}
 
+	if (access("/dev/kmsg", W_OK) == 0) {
+		if ((globaloutfd = open("/dev/kmsg",
+		    O_WRONLY | O_APPEND | O_CLOEXEC)) < 0) {
+			globaloutfd = 2;
+		} else {
+			log_format = LOGF_KMSG;
+		}
+	}
+
 	pipe(selfpipe);
 	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(selfpipe[1], F_SETFL, O_NONBLOCK);
 	fcntl(selfpipe[0], F_SETFD, FD_CLOEXEC);
 	fcntl(selfpipe[1], F_SETFD, FD_CLOEXEC);
 
-	globallog[0] = -1;
-	globallog[1] = -1;
+	pipe(globallog);
+	/* keep globallog[0] blocking */
+	fcntl(globallog[1], F_SETFL, O_NONBLOCK);
+	fcntl(globallog[0], F_SETFD, FD_CLOEXEC);
+	fcntl(globallog[1], F_SETFD, FD_CLOEXEC);
 
 	sigset_t allset;
 	sigfillset(&allset);
@@ -754,11 +861,13 @@ main(int argc, char *argv[])
 
 	rescan(1);
 
-	struct pollfd fds[2];
+	struct pollfd fds[3];
 	fds[CHLD].fd = selfpipe[0];
 	fds[CHLD].events = POLLIN;
 	fds[CTRL].fd = controlsock;
 	fds[CTRL].events = POLLIN;
+	fds[GLOG].fd = globallog[0];
+	fds[GLOG].events = POLLIN;
 
 	while (1) {
 		deadline now = time_now();
@@ -802,7 +911,7 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 
 		printf("poll(timeout=%d)\n", timeout);
 
-		poll(fds, 2, timeout);
+		poll(fds, sizeof fds / sizeof fds[0], timeout);
 
 		if (fds[CHLD].revents & POLLIN) {
 			char ch;
@@ -826,6 +935,10 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 
 		if (fds[CTRL].revents & POLLIN) {
 			handle_control_sock();
+		}
+
+		if (fds[GLOG].revents & POLLIN) {
+			read_global_log(fds[GLOG].fd);
 		}
 
 		if (want_rescan) {
