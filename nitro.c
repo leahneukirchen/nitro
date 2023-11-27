@@ -71,6 +71,7 @@ struct service {
 	int timeout;
 	pid_t pid;
 	pid_t finishpid;
+	int wstatus;
 	int logpipe[2];
 	enum process_state state;
 	char seen;
@@ -178,10 +179,14 @@ proc_launch(int i)
 		close(alivepipefd[0]);
 
 		services[i].state = PROC_FATAL;
+		services[i].wstatus = -1;
 		services[i].pid = 0;
 		services[i].startstop = time_now();
 		services[i].timeout = 0;
 		services[i].deadline = 0;
+
+		process_step(i, EVNT_EXITED);
+
 		return;
 	}
 	close(alivepipefd[0]);
@@ -205,6 +210,25 @@ proc_finish(int i)
 		return;
 	}
 
+	int wstatus = services[i].wstatus;
+	int status;
+	int signal;
+	char run_status[16];
+	char run_signal[16];
+	if (wstatus == -1) {
+		// exec failed;
+		status = 111;
+		signal = 0;
+	} else if (WIFSIGNALED(wstatus)) {
+		status = -1;
+		signal = WTERMSIG(wstatus);
+	} else {
+		status = WEXITSTATUS(wstatus);
+		signal = 0;
+	}
+	snprintf(run_status, sizeof run_status, "%d", status);
+	snprintf(run_signal, sizeof run_signal, "%d", signal);
+
 	pid_t child = fork();
 	if (child == 0) {
 		chdir(services[i].name);
@@ -217,7 +241,7 @@ proc_finish(int i)
 
 		setsid();
 
-		execl("finish", "finish", (char *)0);
+		execl("finish", "finish", run_status, run_signal, (char *)0);
 		_exit(127);
 	} else if (child < 0) {
 		abort();	/* XXX handle retry */
@@ -369,11 +393,11 @@ process_step(int i, enum process_events ev)
 		case PROC_UP:
 		case PROC_RESTART:
 		case PROC_SHUTDOWN:
+		case PROC_FATAL:
 			proc_finish(i);
 			break;
 
 		case PROC_DOWN:                /* can't happen */
-		case PROC_FATAL:	       /* can't happen */
 		case PROC_DELAY:	       /* can't happen */
 		case PROC_ONESHOT:	       /* can't happen */
 			assert(!"invalid state transition");
@@ -407,8 +431,13 @@ process_step(int i, enum process_events ev)
 			proc_zap(i);
 			break;
 
+		case PROC_FATAL:
+			proc_cleanup(i);
+			services[i].state = PROC_FATAL;
+			break;
+
+		case PROC_SETUP:               /* can't happen */
 		case PROC_DOWN:                /* can't happen */
-		case PROC_FATAL:	       /* can't happen */
 		case PROC_DELAY:	       /* can't happen */
 		case PROC_ONESHOT:	       /* can't happen */
 			assert(!"invalid state transition");
@@ -678,15 +707,17 @@ handle_control_sock() {
 
 		for (int i = 0; i < max_service; i++) {
 			if (services[i].pid)
-				reply = steprn(reply, replyend, "%s %s (pid %d) %ds\n",
+				reply = steprn(reply, replyend, "%s %s (pid %d) (wstatus %d) %ds\n",
 				    proc_state_str(services[i].state),
 				    services[i].name,
 				    services[i].pid,
+				    services[i].wstatus,
 				    (now - services[i].startstop) / 1000);
 			else
-				reply = steprn(reply, replyend, "%s %s %ds\n",
+				reply = steprn(reply, replyend, "%s %s (wstatus %d) %ds\n",
 				    proc_state_str(services[i].state),
 				    services[i].name,
+				    services[i].wstatus,
 				    (now - services[i].startstop) / 1000);
 		}
 
@@ -751,9 +782,9 @@ has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].pid == pid) {
-			// XXX store status
 			printf("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
+			services[i].wstatus = status;
 			process_step(i, EVNT_EXITED);
 			return;
 		}
