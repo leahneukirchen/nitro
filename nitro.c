@@ -60,6 +60,7 @@ enum process_events {
 	EVNT_WANT_DOWN,
 	EVNT_WANT_RESTART,
 	EVNT_EXITED,
+	EVNT_FINISHED,		/* finish script exited */
 	// EVNT_DIED,   health check failed
 };
 
@@ -69,6 +70,7 @@ struct service {
 	deadline deadline;
 	int timeout;
 	pid_t pid;
+	pid_t finishpid;
 	int logpipe[2];
 	enum process_state state;
 	char seen;
@@ -118,6 +120,8 @@ stat_slash(const char *dir, const char *name, struct stat *st)
 
 	return stat(buf, st);
 }
+
+void process_step(int i, enum process_events ev);
 
 void
 proc_launch(int i)
@@ -193,6 +197,36 @@ proc_launch(int i)
 }
 
 void
+proc_finish(int i)
+{
+	struct stat st;
+	if (stat_slash(services[i].name, "finish", &st) < 0 && errno == ENOENT) {
+		process_step(i, EVNT_FINISHED);
+		return;
+	}
+
+	pid_t child = fork();
+	if (child == 0) {
+		chdir(services[i].name);
+
+		dup2(nullfd, 0);
+		if (services[i].logpipe[1] != -1)
+			dup2(services[i].logpipe[1], 1);
+		else if (globallog[1] != -1)
+			dup2(globallog[1], 1);
+
+		setsid();
+
+		execl("finish", "finish", (char *)0);
+		_exit(127);
+	} else if (child < 0) {
+		abort();	/* XXX handle retry */
+	}
+
+	services[i].finishpid = child;
+}
+
+void
 proc_shutdown(int i)
 {
 	if (services[i].pid)
@@ -223,6 +257,7 @@ void
 proc_cleanup(int i)
 {
 	services[i].pid = 0;
+	services[i].finishpid = 0;
 	services[i].timeout = 0;
 	services[i].deadline = 0;
 	services[i].state = PROC_DOWN;
@@ -331,6 +366,26 @@ process_step(int i, enum process_events ev)
 		services[i].deadline = 0;
 		switch (services[i].state) {
 		case PROC_STARTING:
+		case PROC_UP:
+		case PROC_RESTART:
+		case PROC_SHUTDOWN:
+			proc_finish(i);
+			break;
+
+		case PROC_DOWN:                /* can't happen */
+		case PROC_FATAL:	       /* can't happen */
+		case PROC_DELAY:	       /* can't happen */
+		case PROC_ONESHOT:	       /* can't happen */
+			assert(!"invalid state transition");
+			break;
+		}
+		break;
+
+	case EVNT_FINISHED:
+		services[i].timeout = 0;
+		services[i].deadline = 0;
+		switch (services[i].state) {
+		case PROC_STARTING:
 			proc_cleanup(i);
 			if (global_state != GLBL_UP)
 				break;
@@ -360,7 +415,6 @@ process_step(int i, enum process_events ev)
 			break;
 		}
 		break;
-
 
 	case EVNT_TIMEOUT:
 		services[i].timeout = 0;
@@ -697,9 +751,17 @@ has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].pid == pid) {
+			// XXX store status
 			printf("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			process_step(i, EVNT_EXITED);
+			return;
+		}
+
+		if (services[i].finishpid == pid) {
+			printf("finish script %s[%d] has died with status %d\n",
+			    services[i].name, pid, status);
+			process_step(i, EVNT_FINISHED);
 			return;
 		}
 
