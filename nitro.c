@@ -45,6 +45,7 @@ enum global_state {
 
 enum process_state {
 	PROC_DOWN = 1,
+	PROC_SETUP,
 	PROC_STARTING,
 	PROC_UP,
 	PROC_ONESHOT,
@@ -59,6 +60,7 @@ enum process_events {
 	EVNT_WANT_UP,
 	EVNT_WANT_DOWN,
 	EVNT_WANT_RESTART,
+	EVNT_SETUP,		/* setup script exited */
 	EVNT_EXITED,
 	EVNT_FINISHED,		/* finish script exited */
 	// EVNT_DIED,   health check failed
@@ -70,6 +72,7 @@ struct service {
 	deadline deadline;
 	int timeout;
 	pid_t pid;
+	pid_t setuppid;
 	pid_t finishpid;
 	int wstatus;
 	int logpipe[2];
@@ -127,6 +130,8 @@ void process_step(int i, enum process_events ev);
 void
 proc_launch(int i)
 {
+	services[i].setuppid = 0;
+
 	struct stat st;
 	if (stat_slash(services[i].name, "run", &st) < 0 && errno == ENOENT) {
 		services[i].pid = 0;
@@ -202,6 +207,43 @@ proc_launch(int i)
 }
 
 void
+proc_setup(int i)
+{
+	struct stat st;
+	if (stat_slash(services[i].name, "setup", &st) < 0 && errno == ENOENT) {
+		services[i].state = PROC_SETUP;
+		process_step(i, EVNT_SETUP);
+		return;
+	}
+
+	pid_t child = fork();
+	if (child == 0) {
+		chdir(services[i].name);
+
+		dup2(nullfd, 0);
+		if (services[i].logpipe[1] != -1)
+			dup2(services[i].logpipe[1], 1);
+		else if (globallog[1] != -1)
+			dup2(globallog[1], 1);
+
+		setsid();
+
+		execl("setup", "setup", (char *)0);
+		_exit(127);
+	} else if (child < 0) {
+		abort();	/* XXX handle retry */
+	}
+
+	// XXX use alivepipe?
+
+	services[i].setuppid = child;
+	services[i].startstop = time_now();
+	services[i].state = PROC_SETUP;
+	services[i].timeout = 0;
+	services[i].deadline = 0;
+}
+
+void
 proc_finish(int i)
 {
 	struct stat st;
@@ -253,6 +295,9 @@ proc_finish(int i)
 void
 proc_shutdown(int i)
 {
+	if (services[i].setuppid)
+		kill(services[i].setuppid, SIGTERM);
+
 	if (services[i].pid)
 		kill(services[i].pid, SIGTERM);
 
@@ -270,6 +315,9 @@ proc_shutdown(int i)
 void
 proc_kill(int i)
 {
+	if (services[i].setuppid)
+		kill(services[i].setuppid, SIGKILL);
+
 	if (services[i].pid)
 		kill(services[i].pid, SIGKILL);
 
@@ -281,6 +329,7 @@ void
 proc_cleanup(int i)
 {
 	services[i].pid = 0;
+	services[i].setuppid = 0;
 	services[i].finishpid = 0;
 	services[i].timeout = 0;
 	services[i].deadline = 0;
@@ -319,6 +368,7 @@ process_step(int i, enum process_events ev)
 			break;
 		switch (services[i].state) {
 		case PROC_ONESHOT:
+		case PROC_SETUP:
 		case PROC_STARTING:
 		case PROC_UP:
 		case PROC_RESTART:
@@ -332,13 +382,14 @@ process_step(int i, enum process_events ev)
 		case PROC_DOWN:
 		case PROC_FATAL:
 		case PROC_DELAY:
-			proc_launch(i);
+			proc_setup(i);
 			break;
 		}
 		break;
 
 	case EVNT_WANT_DOWN:
 		switch (services[i].state) {
+		case PROC_SETUP:
 		case PROC_STARTING:
 		case PROC_UP:
 		case PROC_RESTART:
@@ -363,6 +414,7 @@ process_step(int i, enum process_events ev)
 		if (global_state != GLBL_UP)
 			break;
 		switch (services[i].state) {
+		case PROC_SETUP:
 		case PROC_STARTING:
 		case PROC_UP:
 		case PROC_RESTART:
@@ -380,6 +432,26 @@ process_step(int i, enum process_events ev)
 		case PROC_DOWN:
 		case PROC_FATAL:
 		case PROC_DELAY:
+			proc_setup(i);
+			break;
+		}
+		break;
+
+	case EVNT_SETUP:
+		if (global_state != GLBL_UP)
+			break;
+		switch (services[i].state) {
+		case PROC_ONESHOT:
+		case PROC_STARTING:
+		case PROC_UP:
+		case PROC_RESTART:
+		case PROC_SHUTDOWN:
+		case PROC_FATAL:
+		case PROC_DELAY:
+		case PROC_DOWN:
+			assert(!"invalid state transition");
+
+		case PROC_SETUP:
 			proc_launch(i);
 			break;
 		}
@@ -397,6 +469,7 @@ process_step(int i, enum process_events ev)
 			proc_finish(i);
 			break;
 
+		case PROC_SETUP:               /* can't happen */
 		case PROC_DOWN:                /* can't happen */
 		case PROC_DELAY:	       /* can't happen */
 		case PROC_ONESHOT:	       /* can't happen */
@@ -423,7 +496,7 @@ process_step(int i, enum process_events ev)
 			proc_cleanup(i);
 			if (global_state != GLBL_UP)
 				break;
-			proc_launch(i);
+			proc_setup(i);
 			break;
 
 		case PROC_SHUTDOWN:
@@ -450,7 +523,7 @@ process_step(int i, enum process_events ev)
 		services[i].deadline = 0;
 		switch (services[i].state) {
 		case PROC_DELAY:
-			proc_launch(i);
+			proc_setup(i);
 			break;
 
 		case PROC_STARTING:
@@ -466,6 +539,7 @@ process_step(int i, enum process_events ev)
 		case PROC_DOWN:
 		case PROC_FATAL:
 		case PROC_ONESHOT:
+		case PROC_SETUP:
 			assert(!"invalid timeout handler");
 			break;
 		}
@@ -662,6 +736,7 @@ proc_state_str(enum process_state state)
 	case PROC_RESTART: return "RESTART";
 	case PROC_FATAL: return "FATAL";
 	case PROC_DELAY: return "DELAY";
+	case PROC_SETUP: return "SETUP";
 	case PROC_ONESHOT: return "ONESHOT";
 	}
 
@@ -781,6 +856,14 @@ void
 has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
+		if (services[i].setuppid == pid) {
+			// XXX use status
+			printf("setup %s[%d] has died with status %d\n",
+			    services[i].name, pid, status);
+			process_step(i, EVNT_SETUP);
+			return;
+		}
+
 		if (services[i].pid == pid) {
 			printf("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
@@ -1057,6 +1140,9 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 				if (!(services[i].state == PROC_DOWN ||
 				    services[i].state == PROC_FATAL)) {
 					up++;
+					printf("DBG wait for %d/%d to go down\n",
+					    services[i].pid,
+					    services[i].finishpid);
 					if (services[i].islog)
 						uplog++;
 					if (strcmp(services[i].name, "LOG"))
