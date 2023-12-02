@@ -894,8 +894,8 @@ write_global_log(char *log, size_t ulen)
 		break;
 	case LOGF_KMSG: {
 		// printk keeps track of time, we just need facility and level.
-		// printk doesn't like dprintf using lseek etc, so do a single
-		// write.
+		// printk doesn't like glibc dprintf using lseek etc,
+		// so do a single write.
 		char buf[4096];
 		int r = snprintf(buf, sizeof buf,
 		    "<%d>nitro: %.*s\n", LOG_DAEMON | LOG_NOTICE, len, log);
