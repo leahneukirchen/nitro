@@ -350,7 +350,12 @@ proc_zap(int i) {
 
 	if (!services[i].seen) {
 		printf("can garbage-collect %s\n", services[i].name);
-		services[i] = services[--max_service];
+		if (max_service > 0) {
+			services[i] = services[--max_service];
+		} else {
+			assert(i == 0);
+			services[i] = (struct service){ 0 };
+		}
 	}
 }
 
