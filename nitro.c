@@ -585,7 +585,7 @@ find_service(char *name)
 }
 
 int
-add_service(char *name)
+add_service(const char *name)
 {
 	int i;
 	for (i = 0; i < max_service; i++)
@@ -627,6 +627,10 @@ rescan(int first)
 		if (stat(name, &st) < 0)
 			continue;
 		if (!S_ISDIR(st.st_mode))
+			continue;
+
+		// ignore magic boot service
+		if (strcmp(name, "rc.boot") == 0)
 			continue;
 
 		printf("SCAN %s\n", name);
@@ -826,7 +830,10 @@ handle_control_sock() {
 	case 'd':
 	case 'r':
 	{
+		struct stat st;
 		int i = find_service(buf + 1);
+		if (stat(buf + 1, &st) == 0)
+			i = add_service(buf + 1);
 		if (i < 0)
 			goto fail;
 
@@ -888,6 +895,14 @@ has_died(pid_t pid, int status)
 				services[i].state = PROC_DELAY;
 				services[i].timeout = 1000;
 				services[i].deadline = 0;
+			}
+
+			if (strcmp(services[i].name, "rc.boot") == 0) {
+				services[i].seen = 0;
+				proc_cleanup(i);
+				proc_zap(i);
+				// bring up rest of the services
+				rescan(1);
 			}
 
 			return;
@@ -1068,7 +1083,15 @@ main(int argc, char *argv[])
 
 	global_state = GLBL_UP;
 
-	rescan(1);
+	{
+		struct stat st;
+		if (stat("rc.boot", &st) == 0) {
+			int b = add_service("rc.boot");
+			process_step(b, EVNT_WANT_UP);
+		} else {
+			rescan(1);
+		}
+	}
 
 	struct pollfd fds[3];
 	fds[CHLD].fd = selfpipe[0];
