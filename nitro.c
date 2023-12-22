@@ -840,14 +840,14 @@ handle_control_sock() {
 ok:
 	if (srclen > 0) {
 		char reply[] = "ok\n";
-		sendto(controlsock, reply, sizeof reply,
+		sendto(controlsock, reply, sizeof reply - 1,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 	}
 	return;
 fail:
 	if (srclen > 0) {
 		char reply[] = "error\n";
-		sendto(controlsock, reply, sizeof reply,
+		sendto(controlsock, reply, sizeof reply - 1,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 	}
 }
