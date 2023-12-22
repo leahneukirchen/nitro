@@ -857,10 +857,17 @@ has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].setuppid == pid) {
-			// XXX use status
 			printf("setup %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
-			process_step(i, EVNT_SETUP);
+
+			if (status == 0) {
+				process_step(i, EVNT_SETUP);
+			} else {
+				services[i].state = PROC_DELAY;
+				services[i].timeout = 1000;
+				services[i].deadline = 0;
+			}
+
 			return;
 		}
 
