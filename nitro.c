@@ -800,6 +800,17 @@ handle_control_sock() {
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
+	case '?':
+	{
+		int i = find_service(buf + 1);
+		if (i < 0)
+			goto fail;
+		char replybuf[3] = "?\n";
+		replybuf[0] = 64 + services[i].state;
+		sendto(controlsock, replybuf, sizeof replybuf - 1,
+		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
+		return;
+	}
 	case 's':
 		want_rescan = 1;
 		goto ok;
