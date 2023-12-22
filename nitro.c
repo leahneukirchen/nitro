@@ -775,6 +775,9 @@ handle_control_sock() {
 	switch (buf[0]) {
 	case 'l':
 	{
+		if (srclen == 0)
+			return;
+
 		char replybuf[4096];
 		char *replyend = replybuf + sizeof replybuf;
 		char *reply = replybuf;
@@ -802,6 +805,9 @@ handle_control_sock() {
 	}
 	case '?':
 	{
+		if (srclen == 0)
+			return;
+
 		int i = find_service(buf + 1);
 		if (i < 0)
 			goto fail;
