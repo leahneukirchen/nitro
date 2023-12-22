@@ -811,9 +811,6 @@ handle_control_sock() {
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
-	case 's':
-		want_rescan = 1;
-		goto ok;
 	case 'u':
 	case 'd':
 	case 'r':
@@ -830,6 +827,9 @@ handle_control_sock() {
 			process_step(i, EVNT_WANT_RESTART);
 		goto ok;
 	}
+	case 's':
+		want_rescan = 1;
+		goto ok;
 	case 'S':
 		want_shutdown = 1;
 		goto ok;
