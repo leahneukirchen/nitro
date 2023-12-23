@@ -3,6 +3,10 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/un.h>
+#ifdef __linux__
+#include <sys/mount.h>
+#include <sys/reboot.h>
+#endif
 
 #include <assert.h>
 #include <dirent.h>
@@ -91,8 +95,12 @@ DIR *cwd;
 char logbuf[4096];
 char *logbufend = logbuf;
 
+int pid1;
+int real_pid1;
+
 volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
+volatile sig_atomic_t want_reboot;
 
 char *
 steprn(char *dst, char *end, const char *fmt, ...)
@@ -154,6 +162,8 @@ proc_launch(int i)
 	if (child == 0) {
 		chdir(services[i].name);
 
+		setsid();
+
 		if (strcmp(services[i].name, "LOG") == 0) {
 			dup2(globallog[0], 0);
 			dup2(1, 2);
@@ -166,8 +176,6 @@ proc_launch(int i)
 			else if (globallog[1] != -1)
 				dup2(globallog[1], 1);
 		}
-
-		setsid();
 
 		execl("run", "run", (char *)0);
 
@@ -220,13 +228,20 @@ proc_setup(int i)
 	if (child == 0) {
 		chdir(services[i].name);
 
-		dup2(nullfd, 0);
+		setsid();
+
+		if (strcmp(services[i].name, "rc.boot") == 0) {
+			// keep fd connected to console, acquire controlling tty
+			// only works after setsid!
+			ioctl(0, TIOCSCTTY, 1);
+		} else {
+			dup2(nullfd, 0);
+		}
+
 		if (services[i].logpipe[1] != -1)
 			dup2(services[i].logpipe[1], 1);
 		else if (globallog[1] != -1)
 			dup2(globallog[1], 1);
-
-		setsid();
 
 		execl("setup", "setup", (char *)0);
 		_exit(127);
@@ -562,7 +577,12 @@ on_signal(int sig)
 	case SIGCHLD:
 		write(selfpipe[1], "", 1);
 		break;
-	case SIGINT:		/* XXX for debugging */
+	case SIGINT:
+		if (real_pid1)
+			want_reboot = 1;    /* Linux Ctrl-Alt-Delete */
+		else
+			want_shutdown = 1;
+		break;
 	case SIGTERM:
 		want_shutdown = 1;
 		break;
@@ -665,6 +685,22 @@ rescan(int first)
 }
 
 void
+own_console()
+{
+	return;
+
+	int ttyfd = open("/dev/console", O_RDWR);
+	if (ttyfd < 0)
+		return;
+	dup2(ttyfd, 0);
+	dup2(ttyfd, 1);
+	dup2(ttyfd, 2);
+	if (ttyfd > 2)
+		close(ttyfd);
+	ioctl(0, TIOCSCTTY, 1);
+}
+
+void
 do_shutdown(int state)
 {
 	global_state = state;
@@ -677,6 +713,13 @@ do_shutdown(int state)
 		printf("want down %d %d\n", i, services[i].state);
 		process_step(i, EVNT_WANT_DOWN);
 	}
+
+	if (pid1)
+		own_console();
+
+#ifdef __linux__
+	reboot(RB_ENABLE_CAD);
+#endif
 }
 
 void
@@ -852,7 +895,7 @@ handle_control_sock() {
 		want_shutdown = 1;
 		goto ok;
 	case 'R':
-		do_shutdown(GLBL_WANT_REBOOT);
+		want_reboot = 1;
 		goto ok;
 	default:
 		if (!charsig(buf[0]))
@@ -897,7 +940,8 @@ has_died(pid_t pid, int status)
 				services[i].deadline = 0;
 			}
 
-			if (strcmp(services[i].name, "rc.boot") == 0) {
+			if (strcmp(services[i].name, "rc.boot") == 0 &&
+			    global_state == GLBL_UP) { /* C-A-D during rc.boot */
 				services[i].seen = 0;
 				proc_cleanup(i);
 				proc_zap(i);
@@ -1015,6 +1059,36 @@ read_global_log(int fd)
 	}
 }
 
+/* only detects toplevel mount points */
+static int
+mounted(const char *dir)
+{
+	struct stat rootst;
+	struct stat dirst;
+
+	stat("/", &rootst);
+	if (stat(dir, &dirst) < 0)
+		return 1;  /* can't mount if mountpoint doesn't exist */
+
+	return rootst.st_dev != dirst.st_dev;
+}
+
+void
+init_mount() {
+#ifdef __linux__
+	if (!access("/dev/null", F_OK) && !mounted("/dev")) {
+		printf("mounting /dev");
+		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
+	}
+	if (!mounted("/run")) {
+		printf("mounting /run");
+		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
+	}
+#endif
+}
+
+#undef CTRL
+
 #define CHLD 0
 #define CTRL 1
 #define GLOG 2
@@ -1024,8 +1098,24 @@ main(int argc, char *argv[])
 {
 	int i;
 
-	if (chdir(argv[1]) < 0) {
-		perror("chdir");
+	pid1 = real_pid1 = (getpid() == 1);
+	if (pid1) {
+		umask(0022);
+		setenv("PATH", "/usr/bin:/usr/sbin", 0);
+		init_mount();
+		own_console();
+#ifdef __linux__
+		if (reboot(RB_DISABLE_CAD) < 0)
+			real_pid1 = 0;  /* we are in a container */
+#endif
+	}
+
+	const char *dir = "/etc/nitro";
+	if (argc == 2)
+		dir = argv[1];
+
+	if (chdir(dir) < 0) {
+		fprintf(stderr, "chdir: %s: %s\n", dir, strerror(errno));
 		exit(111);
 	}
 
@@ -1184,6 +1274,10 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 			do_shutdown(GLBL_WANT_SHUTDOWN);
 		}
 
+		if (want_reboot) {
+			do_shutdown(GLBL_WANT_REBOOT);
+		}
+
 		if (global_state != GLBL_UP) {
 			int up = 0;
 			int uplog = 0;
@@ -1214,4 +1308,22 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 			}
 		}
 	}
+
+#ifdef __linux__
+	if (pid1) {
+		sync();
+		sleep(1);
+
+		if (global_state == GLBL_WANT_REBOOT) {
+			printf("reboot.\n");
+			reboot(RB_AUTOBOOT);
+		} else {
+			// falls back to RB_HALT_SYSTEM if not possible
+			printf("shutdown.\n");
+			reboot(RB_POWER_OFF);
+		}
+	}
+#endif
+
+	return 0;
 }
