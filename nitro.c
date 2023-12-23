@@ -932,6 +932,8 @@ has_died(pid_t pid, int status)
 			printf("setup %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 
+			services[i].setuppid = 0;
+
 			if (status == 0) {
 				process_step(i, EVNT_SETUP);
 			} else {
@@ -955,6 +957,7 @@ has_died(pid_t pid, int status)
 		if (services[i].pid == pid) {
 			printf("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
+			services[i].pid = 0;
 			services[i].wstatus = status;
 			process_step(i, EVNT_EXITED);
 			return;
@@ -963,6 +966,7 @@ has_died(pid_t pid, int status)
 		if (services[i].finishpid == pid) {
 			printf("finish script %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
+			services[i].finishpid = 0;
 			process_step(i, EVNT_FINISHED);
 			return;
 		}
