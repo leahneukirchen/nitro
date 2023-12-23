@@ -92,6 +92,8 @@ int selfpipe[2];
 int globallog[2];
 int globaloutfd = 2;
 DIR *cwd;
+DIR *notifydir;
+char notifypath[256];
 char logbuf[4096];
 char *logbufend = logbuf;
 
@@ -134,6 +136,7 @@ stat_slash(const char *dir, const char *name, struct stat *st)
 }
 
 void process_step(int i, enum process_events ev);
+void notify(int);
 
 void
 proc_launch(int i)
@@ -357,6 +360,8 @@ proc_cleanup(int i)
 		if (services[i].logpipe[1] > 0)
 			close(services[i].logpipe[1]);
 	}
+
+	notify(i);
 }
 
 void
@@ -527,6 +532,7 @@ process_step(int i, enum process_events ev)
 		case PROC_FATAL:
 			proc_cleanup(i);
 			services[i].state = PROC_FATAL;
+			notify(i);
 			break;
 
 		case PROC_SETUP:               /* can't happen */
@@ -548,6 +554,7 @@ process_step(int i, enum process_events ev)
 
 		case PROC_STARTING:
 			services[i].state = PROC_UP;
+			notify(i);
 			break;
 
 		case PROC_RESTART:
@@ -736,6 +743,12 @@ open_control_socket() {
 		dir[last_slash - path] = 0;
 		mkdir(dir, 0700);
 		// ignore errors
+
+		strcpy(notifypath, dir);
+		strcat(notifypath, "/notify/");
+		mkdir(notifypath, 0700);
+		// ignore errors
+		notifydir = opendir(notifypath);
 	}
 
 	struct sockaddr_un addr = { 0 };
@@ -757,6 +770,46 @@ open_control_socket() {
 		perror("nitro: bind");
 		exit(111);
 	}
+}
+
+void
+notify(int i)
+{
+	printf("NOTIFY\n");
+
+	if (!notifydir)
+		return;
+
+	char notifybuf[128];
+	sprintf(notifybuf, "%c%s\n", 64 + services[i].state,
+	    services[i].name);
+
+	struct dirent *ent;
+	rewinddir(notifydir);
+	while ((ent = readdir(notifydir))) {
+		char *name = ent->d_name;
+
+		if (name[0] == '.')
+			continue;
+
+		printf("notify check %s\n", name);
+
+		if ((strncmp(name, services[i].name, strlen(services[i].name)) == 0 &&
+		    name[strlen(services[i].name)] == ',') ||
+		    (strncmp("ALL,", name, 4) == 0)) {
+
+			struct sockaddr_un addr = { 0 };
+			addr.sun_family = AF_UNIX;
+			strncpy(addr.sun_path, notifypath, sizeof addr.sun_path - 1);
+			strcat(addr.sun_path, name);
+
+			printf("notify to %s\n", addr.sun_path);
+
+			sendto(controlsock, notifybuf, strlen(notifybuf),
+			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr);
+		}
+	}
+
 }
 
 int
