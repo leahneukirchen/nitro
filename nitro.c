@@ -1077,11 +1077,11 @@ void
 init_mount() {
 #ifdef __linux__
 	if (!access("/dev/null", F_OK) && !mounted("/dev")) {
-		printf("mounting /dev");
+		printf("mounting /dev\n");
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
 	}
 	if (!mounted("/run")) {
-		printf("mounting /run");
+		printf("mounting /run\n");
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
 	}
 #endif
@@ -1165,9 +1165,8 @@ main(int argc, char *argv[])
 	sigaction(SIGCHLD, &sa, 0);
 	sigaction(SIGHUP, &sa, 0);
 	sigaction(SIGINT, &sa, 0);
-/* for debugging
-	sigaction(SIGTERM, &sa, 0);
-*/
+	if (!real_pid1)		// only standalone and in containers
+		sigaction(SIGTERM, &sa, 0);
 
 	open_control_socket();
 
