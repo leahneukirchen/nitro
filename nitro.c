@@ -427,9 +427,12 @@ process_step(int i, enum process_events ev)
 			proc_shutdown(i);
 			break;
 
+		case PROC_ONESHOT:
+			proc_finish(i);
+			break;
+
 		case PROC_FATAL:
 		case PROC_DELAY:
-		case PROC_ONESHOT:
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 			services[i].deadline = 0;
@@ -454,9 +457,8 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_ONESHOT:
-			services[i].state = PROC_DELAY;
-			services[i].timeout = 1000;
-			services[i].deadline = 0;
+			proc_finish(i);
+			services[i].state = PROC_RESTART;
 			break;
 
 		case PROC_DOWN:
@@ -529,6 +531,7 @@ process_step(int i, enum process_events ev)
 			proc_setup(i);
 			break;
 
+		case PROC_ONESHOT:
 		case PROC_SHUTDOWN:
 			proc_cleanup(i);
 			proc_zap(i);
@@ -543,7 +546,6 @@ process_step(int i, enum process_events ev)
 		case PROC_SETUP:               /* can't happen */
 		case PROC_DOWN:                /* can't happen */
 		case PROC_DELAY:	       /* can't happen */
-		case PROC_ONESHOT:	       /* can't happen */
 			assert(!"invalid state transition");
 			break;
 		}
