@@ -139,8 +139,7 @@ int
 main(int argc, char *argv[])
 {
 	if (argc < 2 || (
-	    strcmp(argv[1], "l") != 0 && strcmp(argv[1], "level") != 0 &&
-	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "status") != 0 &&
+	    strcmp(argv[1], "l") != 0 && strcmp(argv[1], "list") != 0 &&
 	    strcmp(argv[1], "d") != 0 && strcmp(argv[1], "down") != 0 &&
 	    strcmp(argv[1], "u") != 0 && strcmp(argv[1], "up") != 0 &&
 	    strcmp(argv[1], "p") != 0 && strcmp(argv[1], "pause") != 0 &&
@@ -155,7 +154,7 @@ main(int argc, char *argv[])
 	    strcmp(argv[1], "2") != 0 &&
 	    strcmp(argv[1], "check") != 0 &&
 	    strcmp(argv[1], "start") != 0 &&
-	    strcmp(argv[1], "restart") != 0 &&
+	    strcmp(argv[1], "r") != 0 && strcmp(argv[1], "restart") != 0 &&
 	    strcmp(argv[1], "stop") != 0 &&
 	    strcmp(argv[1], "Reboot") != 0 &&
 	    strcmp(argv[1], "Shutdown") != 0)) {
