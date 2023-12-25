@@ -1355,7 +1355,7 @@ main(int argc, char *argv[])
 	}
 
 #ifdef __linux__
-	if (pid1) {
+	if (real_pid1) {
 		dprintf(2, "- nitro: system %s\n",
 		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
 
