@@ -665,8 +665,6 @@ rescan(int first)
 		if (strcmp(name, "rc.boot") == 0)
 			continue;
 
-		printf("SCAN %s\n", name);
-
 		int i = add_service(name);
 
 		if (first && stat_slash(name, "down", &st) == 0) {
@@ -678,7 +676,6 @@ rescan(int first)
 		snprintf(buf, sizeof buf, "%s/log", name);
 
 		if (stat_slash(name, "log", &st) == 0 && S_ISDIR(st.st_mode)) {
-			printf("SCAN %s\n", buf);
 			int j = add_service(buf);
 			services[j].islog = 1;
 			if (services[j].logpipe[0] == -1) {
@@ -722,7 +719,6 @@ do_shutdown(int state)
 		if (strcmp(services[i].name, "LOG") == 0)
 			continue;
 
-		printf("want down %d %d\n", i, services[i].state);
 		process_step(i, EVNT_WANT_DOWN);
 	}
 
@@ -780,8 +776,6 @@ open_control_socket() {
 void
 notify(int i)
 {
-	printf("NOTIFY\n");
-
 	if (!notifydir)
 		return;
 
@@ -797,8 +791,6 @@ notify(int i)
 		if (name[0] == '.')
 			continue;
 
-		printf("notify check %s\n", name);
-
 		if ((strncmp(name, services[i].name, strlen(services[i].name)) == 0 &&
 		    name[strlen(services[i].name)] == ',') ||
 		    (strncmp("ALL,", name, 4) == 0)) {
@@ -807,8 +799,6 @@ notify(int i)
 			addr.sun_family = AF_UNIX;
 			strncpy(addr.sun_path, notifypath, sizeof addr.sun_path - 1);
 			strcat(addr.sun_path, name);
-
-			printf("notify to %s\n", addr.sun_path);
 
 			sendto(controlsock, notifybuf, strlen(notifybuf),
 			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr);
@@ -871,8 +861,6 @@ handle_control_sock() {
 		printf("callback error: %m\n");
 		return;
 	}
-
-	printf(">>> got %ld from %d\n", r, srclen);
 
 	if (r == 0)
 		return;
@@ -962,7 +950,6 @@ handle_control_sock() {
 		if (!charsig(buf[0]))
 			goto fail;
 		int i = find_service(buf + 1);
-		printf("%s is %d\n", buf+1, i);
 		if (i >= 0 && services[i].pid) {
 			kill(services[i].pid, charsig(buf[0]));
 			goto ok;
@@ -1093,8 +1080,6 @@ read_global_log(int fd)
 {
 	size_t maxlen = logbuf + sizeof logbuf - logbufend;
 	ssize_t l = read(fd, logbufend, maxlen);
-	printf("read %ld of %ld: |%.*s|\n", l, maxlen,
-	    (int)l, logbufend);
 
 	if (l == 0)
 		return;
@@ -1141,14 +1126,10 @@ mounted(const char *dir)
 void
 init_mount() {
 #ifdef __linux__
-	if (!access("/dev/null", F_OK) && !mounted("/dev")) {
-		printf("mounting /dev\n");
+	if (!access("/dev/null", F_OK) && !mounted("/dev"))
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
-	}
-	if (!mounted("/run")) {
-		printf("mounting /run\n");
+	if (!mounted("/run"))
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
-	}
 #endif
 }
 
@@ -1269,27 +1250,15 @@ main(int argc, char *argv[])
 
 		int timeout = -1;
 
-		printf("\nnow = %ld\n", now);
 		for (i = 0; i < max_service; i++) {
-			printf("-> %s[%d] %d %d %ld\n", services[i].name,
-			    services[i].pid, services[i].state,
-			    services[i].timeout,
-			    services[i].deadline
-			);
-		}
-
-		for (i = 0; i < max_service; i++) {
-printf("TO %s %d\n", services[i].name, services[i].timeout);
 			if (services[i].timeout <= 0)
 				continue;
 
 			if (services[i].deadline == 0)
 				services[i].deadline = now + services[i].timeout;
 
-			if (services[i].deadline <= now) {
-				printf("timeout for %d\n", i);
+			if (services[i].deadline <= now)
 				process_step(i, EVNT_TIMEOUT);
-			}
 
 			if (services[i].timeout <= 0)
 				continue;
@@ -1307,14 +1276,10 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 		printf("poll(timeout=%d)\n", timeout);
 
 		fds[GLOG].fd = (log_format < 0) ? -1 : globallog[0];
-		printf("LOGF=%d GLOGFD=%d\n", log_format, fds[GLOG].fd);
 		poll(fds, sizeof fds / sizeof fds[0], timeout);
 
 		if (fds[CHLD].revents & POLLIN) {
 			char ch;
-
-			printf("data on self pipe\n");
-
 			while (read(selfpipe[0], &ch, 1) == 1)
 				;
 			errno = 0;
@@ -1355,13 +1320,9 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 			int up = 0;
 			int uplog = 0;
 			for (i = 0; i < max_service; i++) {
-				printf("DBG %s %d %d\n", services[i].name, services[i].pid, services[i].state);
 				if (!(services[i].state == PROC_DOWN ||
 				    services[i].state == PROC_FATAL)) {
 					up++;
-					printf("DBG wait for %d/%d to go down\n",
-					    services[i].pid,
-					    services[i].finishpid);
 					if (services[i].islog)
 						uplog++;
 					if (strcmp(services[i].name, "LOG"))
@@ -1384,19 +1345,22 @@ printf("TO %s %d\n", services[i].name, services[i].timeout);
 
 #ifdef __linux__
 	if (pid1) {
+		dprintf(2, "- nitro: system %s",
+		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
+
 		sync();
 		sleep(1);
 
 		if (global_state == GLBL_WANT_REBOOT) {
-			printf("reboot.\n");
 			reboot(RB_AUTOBOOT);
 		} else {
 			// falls back to RB_HALT_SYSTEM if not possible
-			printf("shutdown.\n");
 			reboot(RB_POWER_OFF);
 		}
 	}
 #endif
+
+	dprintf(2, "- nitro: finished\n");
 
 	return 0;
 }
