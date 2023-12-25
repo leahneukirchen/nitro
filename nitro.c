@@ -712,6 +712,11 @@ own_console()
 void
 do_shutdown(int state)
 {
+	if (state == GLBL_WANT_REBOOT)
+		dprintf(2, "- nitro: rebooting\n");
+	else if (state == GLBL_WANT_SHUTDOWN)
+		dprintf(2, "- nitro: shutting down\n");
+
 	global_state = state;
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].islog)
@@ -996,6 +1001,9 @@ has_died(pid_t pid, int status)
 				proc_cleanup(i);
 				proc_zap(i);
 				// bring up rest of the services
+
+				dprintf(2, "- nitro: rc.boot finished\n");
+
 				rescan(1);
 			}
 
@@ -1227,6 +1235,8 @@ main(int argc, char *argv[])
 
 	global_state = GLBL_UP;
 
+	dprintf(2, "- nitro: booting\n");
+
 	{
 		struct stat st;
 		if (stat("rc.boot", &st) == 0) {
@@ -1330,7 +1340,7 @@ main(int argc, char *argv[])
 				}
 			}
 			if (up) {
-				printf("shutdown waiting for %d processes\n", up);
+				dprintf(2, "- nitro: waiting for %d processes to finish\n", up);
 				if (up == uplog) {
 					printf("signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
@@ -1345,7 +1355,7 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 	if (pid1) {
-		dprintf(2, "- nitro: system %s",
+		dprintf(2, "- nitro: system %s\n",
 		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
 
 		sync();
