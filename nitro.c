@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <paths.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -22,6 +23,10 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+
+extern char **environ;
+char **child_environ;
+char *envbuf[64];
 
 typedef int64_t deadline;		/* milliseconds since boot */
 
@@ -180,7 +185,7 @@ proc_launch(int i)
 				dup2(globallog[1], 1);
 		}
 
-		execl("run", "run", (char *)0);
+		execle("run", "run", (char *)0, child_environ);
 
 		status = (errno == ENOENT ? 127 : 126);
 		write(alivepipefd[1], &status, 1);
@@ -246,7 +251,7 @@ proc_setup(int i)
 		else if (globallog[1] != -1)
 			dup2(globallog[1], 1);
 
-		execl("setup", "setup", (char *)0);
+		execle("setup", "setup", (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
 		abort();	/* XXX handle retry */
@@ -301,7 +306,7 @@ proc_finish(int i)
 
 		setsid();
 
-		execl("finish", "finish", run_status, run_signal, (char *)0);
+		execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
 		abort();	/* XXX handle retry */
@@ -1161,13 +1166,22 @@ main(int argc, char *argv[])
 	pid1 = real_pid1 = (getpid() == 1);
 	if (pid1) {
 		umask(0022);
-		setenv("PATH", "/usr/bin:/usr/sbin", 0);
 		init_mount();
 		own_console();
 #ifdef __linux__
 		if (reboot(RB_DISABLE_CAD) < 0)
 			real_pid1 = 0;  /* we are in a container */
 #endif
+	}
+
+	// can't use putenv, which pulls in realloc
+	if (!getenv("PATH")) {
+		envbuf[0] = (char*) "PATH=" _PATH_DEFPATH;
+		for (char **e = environ, **c = envbuf+1; *e; e++, c++)
+			*c = *e;
+		child_environ = envbuf;
+	} else {
+		child_environ = environ;
 	}
 
 	const char *dir = "/etc/nitro";
