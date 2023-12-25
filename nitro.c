@@ -313,6 +313,8 @@ proc_finish(int i)
 	}
 
 	services[i].finishpid = child;
+	services[i].timeout = 7000;
+	services[i].deadline = 0;
 }
 
 void
@@ -347,6 +349,9 @@ proc_kill(int i)
 
 	if (services[i].pid)
 		kill(services[i].pid, SIGKILL);
+
+	if (services[i].finishpid)
+		kill(services[i].finishpid, SIGKILL);
 
 	assert(services[i].state == PROC_SHUTDOWN ||
 	    services[i].state == PROC_RESTART);
