@@ -766,7 +766,12 @@ open_control_socket() {
 		strcat(notifypath, "/notify/");
 		mkdir(notifypath, 0700);
 		// ignore errors
+
 		notifydir = opendir(notifypath);
+		if (!notifydir) {
+			dprintf(2, "- nitro: could not create notify dir %s: %s\n", notifypath, strerror(errno));
+			exit(111);
+		}
 	}
 
 	struct sockaddr_un addr = { 0 };
@@ -793,9 +798,6 @@ open_control_socket() {
 void
 notify(int i)
 {
-	if (!notifydir)
-		return;
-
 	char notifybuf[128];
 	sprintf(notifybuf, "%c%s\n", 64 + services[i].state,
 	    services[i].name);
