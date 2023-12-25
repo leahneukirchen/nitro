@@ -71,7 +71,7 @@ again:
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, sockpath, sizeof addr.sun_path - 1);
 	if (connect(connfd, (struct sockaddr *)&addr, sizeof addr) < 0) {
-		perror("connect");
+		fprintf(stderr, "nitroctl: could not connect to '%s', is nitro started?\n", sockpath);
 		exit(111);
 	}
 }
@@ -103,13 +103,13 @@ send_and_wait(char cmd, const char *service)
 		}
 
 		buf[rd] = 0;
-		printf("got %s\n", buf);
 
 		int state = 0;
 		if (buf[0] >= 'A' && buf[0] <= 'Z')
 			state = buf[0] - 64;
 
 		if (buf[0] == 'e') {
+			fprintf(stderr, "nitroctl: no such service '%s'\n", service);
 			return 111;
 		}
 
