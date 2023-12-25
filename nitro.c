@@ -939,6 +939,9 @@ handle_control_sock() {
 			process_step(i, EVNT_WANT_DOWN);
 		else if (buf[0] == 'r')
 			process_step(i, EVNT_WANT_RESTART);
+
+		notify(i);
+
 		goto ok;
 	}
 	case 's':
