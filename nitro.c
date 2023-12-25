@@ -712,10 +712,18 @@ own_console()
 void
 do_shutdown(int state)
 {
-	if (state == GLBL_WANT_REBOOT)
-		dprintf(2, "- nitro: rebooting\n");
-	else if (state == GLBL_WANT_SHUTDOWN)
-		dprintf(2, "- nitro: shutting down\n");
+	if (global_state == GLBL_UP) {
+		if (state == GLBL_WANT_REBOOT)
+			dprintf(2, "- nitro: rebooting\n");
+		else if (state == GLBL_WANT_SHUTDOWN)
+			dprintf(2, "- nitro: shutting down\n");
+
+		if (pid1)
+			own_console();
+#ifdef __linux__
+		reboot(RB_ENABLE_CAD);
+#endif
+	}
 
 	global_state = state;
 	for (int i = 0; i < max_service; i++) {
@@ -726,13 +734,6 @@ do_shutdown(int state)
 
 		process_step(i, EVNT_WANT_DOWN);
 	}
-
-	if (pid1)
-		own_console();
-
-#ifdef __linux__
-	reboot(RB_ENABLE_CAD);
-#endif
 }
 
 void
