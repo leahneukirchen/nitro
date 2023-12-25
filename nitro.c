@@ -318,11 +318,15 @@ proc_finish(int i)
 void
 proc_shutdown(int i)
 {
-	if (services[i].setuppid)
+	if (services[i].setuppid) {
 		kill(services[i].setuppid, SIGTERM);
+		kill(services[i].setuppid, SIGCONT);
+	}
 
-	if (services[i].pid)
+	if (services[i].pid) {
 		kill(services[i].pid, SIGTERM);
+		kill(services[i].pid, SIGCONT);
+	}
 
 	if (strcmp(services[i].name, "LOG") == 0)
 		log_format = -log_format;
