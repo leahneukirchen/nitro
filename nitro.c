@@ -1151,7 +1151,7 @@ write_global_log(char *log, size_t len)
 {
 	switch (log_format) {
 	case LOGF_PLAIN:
-		prn(globaloutfd, "X: %S\n", log, log + len);
+		prn(globaloutfd, "%S\n", log, log + len);
 		break;
 	case LOGF_KMSG: {
 		// printk keeps track of time, we just need facility and level.
