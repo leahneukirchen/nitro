@@ -135,6 +135,27 @@ send_and_wait(char cmd, const char *service)
 	return 2;
 }
 
+char *
+normalize(char *service)
+{
+	if (!service || (service[0] != '/' && service[0] != '.'))
+		return service;
+
+	char *buf = realpath(service, 0);
+	if (!buf) {
+		fprintf(stderr, "nitroctl: no such service: %s: %m\n", service);
+		exit(1);
+	}
+
+	char *end = strrchr(buf, '/');
+	if (strcmp(end, "/log") == 0)
+		while(end > buf && *--end != '/')
+			;
+
+	return end + 1;
+}
+
+
 int
 main(int argc, char *argv[])
 {
@@ -174,19 +195,20 @@ main(int argc, char *argv[])
 	}
 
 	char cmd = argv[1][0];
+	char *service = normalize(argv[2]);
 
-	if (strcmp(argv[1], "start") == 0 && argv[2])
-		return send_and_wait('u', argv[2]);
-	else if (strcmp(argv[1], "stop") == 0 && argv[2])
-		return send_and_wait('d', argv[2]);
-	else if (strcmp(argv[1], "restart") == 0 && argv[2])
-		return send_and_wait('r', argv[2]);
-	else if (strcmp(argv[1], "check") == 0 && argv[2])
+	if (strcmp(argv[1], "start") == 0 && service)
+		return send_and_wait('u', service);
+	else if (strcmp(argv[1], "stop") == 0 && service)
+		return send_and_wait('d', service);
+	else if (strcmp(argv[1], "restart") == 0 && service)
+		return send_and_wait('r', service);
+	else if (strcmp(argv[1], "check") == 0 && service)
 		cmd = '?';
 
 	notifysock("");
 
-	dprintf(connfd, "%c%s", cmd, argv[2] ? argv[2] : "");
+	dprintf(connfd, "%c%s", cmd, service ? service : "");
 
 	int status = 1;
 
