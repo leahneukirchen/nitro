@@ -377,6 +377,9 @@ proc_setup(int i)
 void
 proc_finish(int i)
 {
+	if (services[i].finishpid)
+		return;
+
 	struct stat st;
 	if (stat_slash(services[i].name, "finish", &st) < 0 && errno == ENOENT) {
 		process_step(i, EVNT_FINISHED);
