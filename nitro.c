@@ -8,7 +8,6 @@
 #include <sys/reboot.h>
 #endif
 
-#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,12 +16,15 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+
+// no error message
+#define assert(x) do { if(!(x)) abort(); } while(0);
 
 extern char **environ;
 char **child_environ;
@@ -40,11 +42,9 @@ deadline time_now()
 enum log_format {
 	LOGF_PLAIN = 1,
 	LOGF_KMSG,
-	LOGF_TIME,
-	LOGF_TAI64N,
 	// LOGF_NONE?
 };
-int log_format = LOGF_TIME;	/* when negative: use external logger */
+int log_format = LOGF_PLAIN;  /* when negative: use external logger */
 
 enum global_state {
 	GLBL_UP,
@@ -109,34 +109,142 @@ volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
 volatile sig_atomic_t want_reboot;
 
-char *
-steprn(char *dst, char *end, const char *fmt, ...)
+static char *
+stecpe(char *dst, const char *end, const char *src, const char *srcend)
 {
-	if (dst >= end)
-		return end;
+        if (dst >= end)
+                return dst;
 
+        ptrdiff_t l = end - dst - 1;
+        size_t t = 1;
+        if (srcend - src < l) {
+                l = srcend - src;
+                t = 0;
+        }
+
+        memcpy(dst, src, l);
+        dst[l] = 0;
+
+        return dst + l + t;
+}
+
+static char *
+stecpy(char *dst, char *end, const char *src)
+{
+        if (dst >= end)
+                return dst;
+
+        while (dst < end && (*dst = *src))
+                src++, dst++;
+
+        if (dst == end)
+                dst[-1] = 0;
+
+        return dst;
+}
+
+static char *
+steprl(char *dst, char *end, long n)
+{
+        if (dst >= end)
+                return end;
+
+        char buf[24];
+        char *bufend = buf + sizeof buf;
+        char *s = bufend;
+
+        unsigned long u = n < 0 ? -n : n;
+
+        do {
+                *--s = '0' + (u % 10);
+                u /= 10;
+        } while (u);
+
+        if (n < 0)
+                *--s = '-';
+
+        return stecpe(dst, end, s, bufend);
+}
+
+size_t
+sprn(char *out, char *oute, const char *fmt, ...)
+{
+	char *outs = out;
 	va_list ap;
-	va_start(ap, fmt);
-	int r = vsnprintf(dst, end - dst, fmt, ap);
-	va_end(ap);
 
-	if (r < 0) {
-		/* snprintf only fails for silly reasons:
-		   truncate what was written, behave as noop.  */
-		*dst = 0;
-		return dst;
+	va_start(ap, fmt);
+
+	for (const char *s = fmt; *s && out < oute; s++) {
+		if (*s == '%') {
+			s++;
+			if (*s == 'd') {
+				out = steprl(out, oute, (int)va_arg(ap, int));
+			} else if (*s == 's') {
+				out = stecpy(out, oute, va_arg(ap, char *));
+			} else if (*s == 'c') {
+				*out++ = va_arg(ap, int);
+			} else if (*s == '%') {
+				*out++ = '%';
+			} else {
+				abort();
+			}
+		} else {
+			*out++ = *s;
+		}
 	}
 
-	return r > end - dst ? end : dst + r;
+	*out = 0;
+
+	va_end(ap);
+
+	return out - outs;
 }
+
+int
+prn(int fd, const char *fmt, ...)
+{
+	char buf[2048];
+	char *out = buf;
+	char *oute = buf + sizeof buf;
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	for (const char *s = fmt; *s && out < oute; s++) {
+		if (*s == '%') {
+			s++;
+			if (*s == 'd') {
+				out = steprl(out, oute, (int)va_arg(ap, int));
+			} else if (*s == 's') {
+				out = stecpy(out, oute, va_arg(ap, char *));
+			} else if (*s == 'S') {
+				char *s = va_arg(ap, char *);
+				char *se = va_arg(ap, char *);
+				out = stecpe(out, oute, s, se);
+//			} else if (*s == 'c') {
+//				*out++ = va_arg(ap, int);
+			} else if (*s == '%') {
+				*out++ = '%';
+			} else {
+				abort();
+			}
+		} else {
+			*out++ = *s;
+		}
+	}
+
+	va_end(ap);
+
+	return write(fd, buf, out - buf);  // XXX safe write
+}
+
+#define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); exit(111); } while (0)
 
 int
 stat_slash(const char *dir, const char *name, struct stat *st)
 {
 	char buf[PATH_MAX];
-
-	snprintf(buf, sizeof buf, "%s/%s", dir, name);
-
+	sprn(buf, buf + sizeof buf, "%s/%s", dir, name);
 	return stat(buf, st);
 }
 
@@ -196,7 +304,7 @@ proc_launch(int i)
 
 	close(alivepipefd[1]);
 	if (read(alivepipefd[0], &status, 1) == 1) {
-		printf("exec failed with status %d\n", status);
+		prn(2, "exec failed with status %d\n", status);
 		close(alivepipefd[0]);
 
 		services[i].state = PROC_FATAL;
@@ -291,8 +399,8 @@ proc_finish(int i)
 		status = WEXITSTATUS(wstatus);
 		signal = 0;
 	}
-	snprintf(run_status, sizeof run_status, "%d", status);
-	snprintf(run_signal, sizeof run_signal, "%d", signal);
+	steprl(run_status, run_status + sizeof run_status, status);
+	steprl(run_signal, run_signal + sizeof run_signal, signal);
 
 	pid_t child = fork();
 	if (child == 0) {
@@ -383,7 +491,7 @@ proc_zap(int i) {
 	// XXX clean up log pipe?
 
 	if (!services[i].seen) {
-		printf("can garbage-collect %s\n", services[i].name);
+		prn(1, "can garbage-collect %s\n", services[i].name);
 		if (max_service > 0) {
 			services[i] = services[--max_service];
 		} else {
@@ -397,7 +505,7 @@ proc_zap(int i) {
 void
 process_step(int i, enum process_events ev)
 {
-	printf("process %s[%d] state %d step %d\n",
+	prn(2, "process %s[%d] state %d step %d\n",
 	    services[i].name, services[i].pid,
 	    services[i].state, ev);
 
@@ -684,7 +792,7 @@ rescan(int first)
 		}
 
 		char buf[PATH_MAX];
-		snprintf(buf, sizeof buf, "%s/log", name);
+		sprn(buf, buf + sizeof buf, "%s/log", name);
 
 		if (stat_slash(name, "log", &st) == 0 && S_ISDIR(st.st_mode)) {
 			int j = add_service(buf);
@@ -725,9 +833,9 @@ do_shutdown(int state)
 {
 	if (global_state == GLBL_UP) {
 		if (state == GLBL_WANT_REBOOT)
-			dprintf(2, "- nitro: rebooting\n");
+			prn(2, "- nitro: rebooting\n");
 		else if (state == GLBL_WANT_SHUTDOWN)
-			dprintf(2, "- nitro: shutting down\n");
+			prn(2, "- nitro: shutting down\n");
 
 		if (pid1)
 			own_console();
@@ -768,10 +876,8 @@ open_control_socket() {
 		// ignore errors
 
 		notifydir = opendir(notifypath);
-		if (!notifydir) {
-			dprintf(2, "- nitro: could not create notify dir %s: %s\n", notifypath, strerror(errno));
-			exit(111);
-		}
+		if (!notifydir)
+			fatal("could not create notify dir %s: errno=%d\n", notifypath, errno);
 	}
 
 	struct sockaddr_un addr = { 0 };
@@ -779,28 +885,24 @@ open_control_socket() {
 	strncpy(addr.sun_path, path, sizeof addr.sun_path - 1);
 
 	controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
-	if (controlsock < 0) {
-		perror("nitro: socket");
-		exit(111);
-	}
+	if (controlsock < 0)
+		fatal("socket");
 	fcntl(controlsock, F_SETFD, FD_CLOEXEC);
 
 	unlink(path);
 	mode_t mask = umask(0077);
 	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
 	umask(mask);
-	if (r < 0) {
-		perror("nitro: bind");
-		exit(111);
-	}
+	if (r < 0)
+		fatal("bind");
 }
 
 void
 notify(int i)
 {
 	char notifybuf[128];
-	sprintf(notifybuf, "%c%s\n", 64 + services[i].state,
-	    services[i].name);
+	sprn(notifybuf, notifybuf + sizeof notifybuf, "%c%s\n",
+	    64 + services[i].state, services[i].name);
 
 	struct dirent *ent;
 	rewinddir(notifydir);
@@ -870,14 +972,10 @@ handle_control_sock() {
 	ssize_t r = recvfrom(controlsock, buf, sizeof buf,
 	    MSG_DONTWAIT, (struct sockaddr *)&src, &srclen);
 
-	if (r == sizeof buf) {
-		printf("message truncated");
-	}
-
 	if (r < 0) {
 		if (errno == EAGAIN)
 			return;
-		printf("callback error: %m\n");
+		prn(2, "callback error: errno=%d\n", errno);
 		return;
 	}
 
@@ -902,14 +1000,14 @@ handle_control_sock() {
 
 		for (int i = 0; i < max_service; i++) {
 			if (services[i].pid)
-				reply = steprn(reply, replyend, "%s %s (pid %d) (wstatus %d) %ds\n",
+				reply += sprn(reply, replyend, "%s %s (pid %d) (wstatus %d) %ds\n",
 				    proc_state_str(services[i].state),
 				    services[i].name,
 				    services[i].pid,
 				    services[i].wstatus,
 				    (now - services[i].startstop) / 1000);
 			else
-				reply = steprn(reply, replyend, "%s %s (wstatus %d) %ds\n",
+				reply += sprn(reply, replyend, "%s %s (wstatus %d) %ds\n",
 				    proc_state_str(services[i].state),
 				    services[i].name,
 				    services[i].wstatus,
@@ -996,7 +1094,7 @@ has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].setuppid == pid) {
-			printf("setup %s[%d] has died with status %d\n",
+			prn(2, "setup %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 
 			services[i].setuppid = 0;
@@ -1016,7 +1114,7 @@ has_died(pid_t pid, int status)
 				proc_zap(i);
 				// bring up rest of the services
 
-				dprintf(2, "- nitro: rc.boot finished\n");
+				prn(2, "- nitro: rc.boot finished\n");
 
 				rescan(1);
 			}
@@ -1025,7 +1123,7 @@ has_died(pid_t pid, int status)
 		}
 
 		if (services[i].pid == pid) {
-			printf("service %s[%d] has died with status %d\n",
+			prn(2, "service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].pid = 0;
 			services[i].wstatus = status;
@@ -1034,7 +1132,7 @@ has_died(pid_t pid, int status)
 		}
 
 		if (services[i].finishpid == pid) {
-			printf("finish script %s[%d] has died with status %d\n",
+			prn(2, "finish script %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].finishpid = 0;
 			process_step(i, EVNT_FINISHED);
@@ -1046,52 +1144,16 @@ has_died(pid_t pid, int status)
 }
 
 void
-write_global_log(char *log, size_t ulen)
+write_global_log(char *log, size_t len)
 {
-	int len = ulen;
-
 	switch (log_format) {
 	case LOGF_PLAIN:
-		dprintf(globaloutfd, "%.*s\n", len, log);
+		prn(globaloutfd, "X: %S\n", log, log + len);
 		break;
 	case LOGF_KMSG: {
 		// printk keeps track of time, we just need facility and level.
-		// printk doesn't like glibc dprintf using lseek etc,
-		// so do a single write.
-		char buf[4096];
-		int r = snprintf(buf, sizeof buf,
-		    "<%d>nitro: %.*s\n", LOG_DAEMON | LOG_NOTICE, len, log);
-		write(globaloutfd, buf, r);
-		break;
-	}
-	case LOGF_TIME: {
-		struct timespec now;
-		clock_gettime(CLOCK_REALTIME, &now);
-		struct tm *tms = gmtime(&now.tv_sec);
-		int usec10 = (int)now.tv_nsec / 10000;
-
-		dprintf(globaloutfd,
-		    "%04d-%02d-%02dT%02d:%02d:%02d.%05d %.*s\n",
-		    tms->tm_year + 1900,
-		    tms->tm_mon + 1,
-		    tms->tm_mday,
-		    tms->tm_hour,
-		    tms->tm_min,
-		    tms->tm_sec,
-		    usec10,
-		    len,
-		    log);
-		break;
-	}
-	case LOGF_TAI64N: {
-		struct timespec now;
-		clock_gettime(CLOCK_REALTIME, &now);
-		dprintf(globaloutfd,
-		    "@%016llx.%08lx %.*s\n",
-		    (unsigned long long)now.tv_sec + 0x400000000000000aULL,
-		    (unsigned long)now.tv_nsec,
-		    len,
-		    log);
+		prn(globaloutfd, "<%d>nitro: %S\n",
+		    LOG_DAEMON | LOG_NOTICE, log, log + len);
 		break;
 	}
 	}
@@ -1191,10 +1253,8 @@ main(int argc, char *argv[])
 	if (argc == 2)
 		dir = argv[1];
 
-	if (chdir(dir) < 0) {
-		fprintf(stderr, "chdir: %s: %s\n", dir, strerror(errno));
-		exit(111);
-	}
+	if (chdir(dir) < 0)
+		fatal("chdir to '%s': errno=%d\n", dir, errno);
 
 	cwd = opendir(".");
 	if (!cwd)
@@ -1202,8 +1262,6 @@ main(int argc, char *argv[])
 
 	nullfd = open("/dev/null", O_RDONLY | O_CLOEXEC);
 	if (nullfd < 0) {
-		perror("nitro: open /dev/null");
-
 		// use a closed pipe instead
 		int fd[2];
 		pipe(fd);
@@ -1249,7 +1307,7 @@ main(int argc, char *argv[])
 
 	global_state = GLBL_UP;
 
-	dprintf(2, "- nitro: booting\n");
+	prn(2, "- nitro: booting\n");
 
 	{
 		struct stat st;
@@ -1297,7 +1355,7 @@ main(int argc, char *argv[])
 			}
 		}
 
-		printf("poll(timeout=%d)\n", timeout);
+		prn(1, "poll(timeout=%d)\n", timeout);
 
 		fds[GLOG].fd = (log_format < 0) ? -1 : globallog[0];
 		poll(fds, sizeof fds / sizeof fds[0], timeout);
@@ -1354,9 +1412,9 @@ main(int argc, char *argv[])
 				}
 			}
 			if (up) {
-				dprintf(2, "- nitro: waiting for %d processes to finish\n", up);
+				prn(2, "- nitro: waiting for %d processes to finish\n", up);
 				if (up == uplog) {
-					printf("signalling %d log processes\n", uplog);
+					prn(1, "signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
 						if (services[i].islog || strcmp(services[i].name, "LOG") == 0)
 							process_step(i, EVNT_WANT_DOWN);
@@ -1369,7 +1427,7 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 	if (real_pid1) {
-		dprintf(2, "- nitro: system %s\n",
+		prn(2, "- nitro: system %s\n",
 		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
 
 		sync();
@@ -1384,7 +1442,7 @@ main(int argc, char *argv[])
 	}
 #endif
 
-	dprintf(2, "- nitro: finished\n");
+	prn(2, "- nitro: finished\n");
 
 	return 0;
 }
