@@ -1,0 +1,16 @@
+FROM alpine:latest
+
+RUN apk update \
+    && apk --no-cache --update add build-base
+
+WORKDIR /bin.alpine
+
+COPY nitro.c .
+COPY nitroctl.c .
+COPY Makefile .
+
+RUN make CFLAGS="-Os -Wl,--gc-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fno-stack-clash-protection" LDFLAGS="-static"
+
+RUN nm --size-sort nitro
+RUN ls -l nitro nitroctl
+RUN size nitro nitroctl
