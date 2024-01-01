@@ -95,7 +95,7 @@ int controlsock;
 int nullfd;
 int selfpipe[2];
 int globallog[2];
-int globaloutfd = 2;
+int globaloutfd = 1;
 DIR *cwd;
 DIR *notifydir;
 char notifypath[256];
@@ -1275,7 +1275,7 @@ main(int argc, char *argv[])
 	if (access("/dev/kmsg", W_OK) == 0) {
 		if ((globaloutfd = open("/dev/kmsg",
 		    O_WRONLY | O_APPEND | O_CLOEXEC)) < 0) {
-			globaloutfd = 2;
+			globaloutfd = 1;
 		} else {
 			log_format = LOGF_KMSG;
 		}
