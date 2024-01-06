@@ -74,9 +74,10 @@ When a service exits, it's being restarted, potentially waiting for
 two seconds if the last restart happened too quickly.
 
 By using `nitroctl Reboot` or `nitroctl Shutdown`, the system can be
-brought down.  nitro will send a SIGTERM signal to all running
-services and waits for up to 7 seconds for the service to exit.
-Otherwise, a SIGKILL is sent.
+brought down.  If it exists, `rc.boot/finish` will be run.  After
+this, nitro will send a SIGTERM signal to all running services and
+waits for up to 7 seconds for the service to exit.  Otherwise, a
+SIGKILL is sent.
 
 Finally, nitro reboots or shuts down the system; or just exits
 when it was used as a container init or unprivileged supervisor.
