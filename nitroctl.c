@@ -250,7 +250,7 @@ main(int argc, char *argv[])
 		cmd = 'R';
 	} else
 #endif
-	if (argc < 2 || (
+	if (argc > 1 && (
 	    strcmp(argv[1], "l") != 0 && strcmp(argv[1], "list") != 0 &&
 	    strcmp(argv[1], "d") != 0 && strcmp(argv[1], "down") != 0 &&
 	    strcmp(argv[1], "u") != 0 && strcmp(argv[1], "up") != 0 &&
@@ -273,6 +273,8 @@ main(int argc, char *argv[])
 	    strcmp(argv[1], "Shutdown") != 0)) {
 		dprintf(2, "usage: nitroctl COMMAND [SERVICE]\n");
 		exit(2);
+	} else if (argc == 1) {
+		cmd = 'l';
 	} else {
 		cmd = argv[1][0];
 	}
