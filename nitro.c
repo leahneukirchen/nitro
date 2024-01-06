@@ -465,7 +465,8 @@ proc_kill(int i)
 		kill(services[i].finishpid, SIGKILL);
 
 	assert(services[i].state == PROC_SHUTDOWN ||
-	    services[i].state == PROC_RESTART);
+	    services[i].state == PROC_RESTART ||
+	    services[i].state == PROC_ONESHOT);
 }
 
 void
@@ -686,13 +687,13 @@ process_step(int i, enum process_events ev)
 
 		case PROC_RESTART:
 		case PROC_SHUTDOWN:
+		case PROC_ONESHOT:
 			proc_kill(i);
 			break;
 
 		case PROC_UP:
 		case PROC_DOWN:
 		case PROC_FATAL:
-		case PROC_ONESHOT:
 		case PROC_SETUP:
 			assert(!"invalid timeout handler");
 			break;
