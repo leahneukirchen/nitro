@@ -1411,7 +1411,7 @@ main(int argc, char *argv[])
 					up++;
 					if (services[i].islog)
 						uplog++;
-					if (strcmp(services[i].name, "LOG"))
+					if (strcmp(services[i].name, "LOG") == 0)
 						uplog++;
 				}
 			}
