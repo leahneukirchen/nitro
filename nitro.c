@@ -833,6 +833,18 @@ own_console()
 }
 
 void
+do_stop_services() {
+	for (int i = 0; i < max_service; i++) {
+		if (services[i].islog)
+			continue;
+		if (strcmp(services[i].name, "LOG") == 0)
+			continue;
+
+		process_step(i, EVNT_WANT_DOWN);
+	}
+}
+
+void
 do_shutdown(int state)
 {
 	if (global_state == GLBL_UP) {
@@ -846,17 +858,22 @@ do_shutdown(int state)
 #ifdef __linux__
 		reboot(RB_ENABLE_CAD);
 #endif
+
+		global_state = state;
+
+
+		struct stat st;
+		if (stat("rc.boot", &st) == 0) {
+			int b = add_service("rc.boot");
+			services[b].state = PROC_ONESHOT;
+			process_step(b, EVNT_WANT_DOWN);
+			services[b].timeout = 30000;
+		} else {
+			do_stop_services();
+		}
 	}
 
 	global_state = state;
-	for (int i = 0; i < max_service; i++) {
-		if (services[i].islog)
-			continue;
-		if (strcmp(services[i].name, "LOG") == 0)
-			continue;
-
-		process_step(i, EVNT_WANT_DOWN);
-	}
 }
 
 void
@@ -1140,6 +1157,10 @@ has_died(pid_t pid, int status)
 			    services[i].name, pid, status);
 			services[i].finishpid = 0;
 			process_step(i, EVNT_FINISHED);
+
+			if (strcmp(services[i].name, "rc.boot") == 0)
+				do_stop_services();
+
 			return;
 		}
 
