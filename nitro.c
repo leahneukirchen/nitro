@@ -346,7 +346,7 @@ proc_setup(int i)
 
 		setsid();
 
-		if (strcmp(services[i].name, "rc.boot") == 0) {
+		if (strcmp(services[i].name, "SYS") == 0) {
 			// keep fd connected to console, acquire controlling tty
 			// only works after setsid!
 			ioctl(0, TIOCSCTTY, 1);
@@ -591,8 +591,6 @@ process_step(int i, enum process_events ev)
 		break;
 
 	case EVNT_SETUP:
-		if (global_state != GLBL_UP)
-			break;
 		switch (services[i].state) {
 		case PROC_ONESHOT:
 		case PROC_STARTING:
@@ -605,7 +603,10 @@ process_step(int i, enum process_events ev)
 			assert(!"invalid state transition");
 
 		case PROC_SETUP:
-			proc_launch(i);
+			if (global_state == GLBL_UP)
+				proc_launch(i);
+			else
+				proc_cleanup(i);
 			break;
 		}
 		break;
@@ -784,8 +785,8 @@ rescan(int first)
 		if (!S_ISDIR(st.st_mode))
 			continue;
 
-		// ignore magic boot service
-		if (strcmp(name, "rc.boot") == 0)
+		// ignore magic bootup/shutdown service
+		if (strcmp(name, "SYS") == 0)
 			continue;
 
 		int i = add_service(name);
@@ -863,8 +864,8 @@ do_shutdown(int state)
 
 
 		struct stat st;
-		if (stat("rc.boot", &st) == 0) {
-			int b = add_service("rc.boot");
+		if (stat("SYS", &st) == 0) {
+			int b = add_service("SYS");
 			services[b].state = PROC_ONESHOT;
 			process_step(b, EVNT_WANT_DOWN);
 			services[b].timeout = 30000;
@@ -1128,14 +1129,14 @@ has_died(pid_t pid, int status)
 				services[i].deadline = 0;
 			}
 
-			if (strcmp(services[i].name, "rc.boot") == 0 &&
-			    global_state == GLBL_UP) { /* C-A-D during rc.boot */
+			if (strcmp(services[i].name, "SYS") == 0 &&
+			    global_state == GLBL_UP) { /* C-A-D during SYS */
 				services[i].seen = 0;
 				proc_cleanup(i);
 				proc_zap(i);
 				// bring up rest of the services
 
-				prn(2, "- nitro: rc.boot finished\n");
+				prn(2, "- nitro: SYS/setup finished\n");
 
 				rescan(1);
 			}
@@ -1158,8 +1159,10 @@ has_died(pid_t pid, int status)
 			services[i].finishpid = 0;
 			process_step(i, EVNT_FINISHED);
 
-			if (strcmp(services[i].name, "rc.boot") == 0)
+			if (strcmp(services[i].name, "SYS") == 0) {
+				prn(2, "- nitro: SYS/finish finished\n");
 				do_stop_services();
+			}
 
 			return;
 		}
@@ -1336,8 +1339,8 @@ main(int argc, char *argv[])
 
 	{
 		struct stat st;
-		if (stat("rc.boot", &st) == 0) {
-			int b = add_service("rc.boot");
+		if (stat("SYS", &st) == 0) {
+			int b = add_service("SYS");
 			process_step(b, EVNT_WANT_UP);
 		} else {
 			rescan(1);
