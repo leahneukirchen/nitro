@@ -57,9 +57,11 @@ You may find runit's `chpst` useful when writing `run` scripts.
 
 - `LOG`: this service is used as a logging service for all services
   that don't have a `log` directory.
-- `rc.boot`: `rc.boot/setup` is run before other services are brought up.
+- `SYS`: `SYS/setup` is run before other services are brought up.
   You can already use `nitroctl` in `rc.boot/setup` to bring up services
   in a certain order.
+  `SYS/finish` is run before all remaining services are killed and the
+  system is brought down.
 
 ## Modes of operation
 
@@ -67,14 +69,14 @@ The lifecycle of a machine/container/session using nitro consists of
 three phases.
 
 First, the system is brought up.  If there is a special service
-`rc.boot`, its `setup` script is run first.  After it finishes, all
+`SYS`, its `setup` script is run first.  After it finishes, all
 services not marked `down` are brought up.
 
 When a service exits, it's being restarted, potentially waiting for
 two seconds if the last restart happened too quickly.
 
 By using `nitroctl Reboot` or `nitroctl Shutdown`, the system can be
-brought down.  If it exists, `rc.boot/finish` will be run.  After
+brought down.  If it exists, `SYS/finish` will be run.  After
 this, nitro will send a SIGTERM signal to all running services and
 waits for up to 7 seconds for the service to exit.  Otherwise, a
 SIGKILL is sent.
@@ -125,7 +127,7 @@ nitro is used as Linux pid 1.
 
 Nitro is self-contained and can be booted directly as pid 1.
 It will mount `/dev` and `/run` when required, everything else
-should be done with `rc.boot`.
+should be done with `SYS/setup`.
 When receiving Ctrl-Alt-Delete, nitro triggers an orderly reboot.
 
 When possible, nitro logs output to `dmesg` while no `LOG` is running.
