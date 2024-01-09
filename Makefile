@@ -1,4 +1,4 @@
-CFLAGS=-g -O2 -Wall -Wno-unused-parameter -Wextra -Wwrite-strings
+CFLAGS=-Os -Wall -Wno-unused-parameter -Wextra -Wwrite-strings
 
 ALL=nitro nitroctl
 

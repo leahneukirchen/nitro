@@ -229,6 +229,11 @@ prn(int fd, const char *fmt, ...)
 }
 
 #define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); exit(111); } while (0)
+#ifdef DEBUG
+#define dprn(...) prn(2, __VA_ARGS__)
+#else
+#define dprn(...) /**/
+#endif
 
 int
 stat_slash(const char *dir, const char *name, struct stat *st)
@@ -314,7 +319,7 @@ proc_launch(int i)
 
 	close(alivepipefd[1]);
 	if (read(alivepipefd[0], &status, 1) == 1) {
-		prn(2, "exec failed with status %d\n", status);
+		dprn("exec failed with status %d\n", status);
 		close(alivepipefd[0]);
 
 		services[i].state = PROC_FATAL;
@@ -526,7 +531,7 @@ proc_zap(int i) {
 	// XXX clean up log pipe?
 
 	if (!services[i].seen) {
-		prn(1, "can garbage-collect %s\n", services[i].name);
+		dprn("can garbage-collect %s\n", services[i].name);
 		if (max_service > 0) {
 			services[i] = services[--max_service];
 		} else {
@@ -540,7 +545,7 @@ proc_zap(int i) {
 void
 process_step(int i, enum process_events ev)
 {
-	prn(2, "process %s[%d] state %d step %d\n",
+	dprn("process %s[%d] state %d step %d\n",
 	    services[i].name, services[i].pid,
 	    services[i].state, ev);
 
@@ -1031,7 +1036,7 @@ handle_control_sock() {
 	if (r < 0) {
 		if (errno == EAGAIN)
 			return;
-		prn(2, "callback error: errno=%d\n", errno);
+		dprn("callback error: errno=%d\n", errno);
 		return;
 	}
 
@@ -1150,7 +1155,7 @@ has_died(pid_t pid, int status)
 {
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].setuppid == pid) {
-			prn(2, "setup %s[%d] has died with status %d\n",
+			dprn("setup %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 
 			services[i].setuppid = 0;
@@ -1179,7 +1184,7 @@ has_died(pid_t pid, int status)
 		}
 
 		if (services[i].pid == pid) {
-			prn(2, "service %s[%d] has died with status %d\n",
+			dprn("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].pid = 0;
 			services[i].wstatus = status;
@@ -1188,7 +1193,7 @@ has_died(pid_t pid, int status)
 		}
 
 		if (services[i].finishpid == pid) {
-			prn(2, "finish script %s[%d] has died with status %d\n",
+			dprn("finish script %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].finishpid = 0;
 			process_step(i, EVNT_FINISHED);
@@ -1356,7 +1361,7 @@ main(int argc, char *argv[])
 			}
 		}
 
-		prn(1, "poll(timeout=%d)\n", timeout);
+		dprn("poll(timeout=%d)\n", timeout);
 
 		int r = 0;
 		do {
@@ -1413,7 +1418,7 @@ main(int argc, char *argv[])
 			if (up) {
 				prn(2, "- nitro: waiting for %d processes to finish\n", up);
 				if (up == uplog) {
-					prn(1, "signalling %d log processes\n", uplog);
+					dprn("signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
 						if (services[i].islog || strcmp(services[i].name, "LOG") == 0)
 							process_step(i, EVNT_WANT_DOWN);
