@@ -6,9 +6,6 @@
 #include <sys/time.h>
 #include <sys/un.h>
 #include <sys/utsname.h>
-#ifdef INIT_SYSTEM
-#include <sys/reboot.h>
-#endif
 
 #include <ctype.h>
 #include <errno.h>
@@ -21,7 +18,11 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+#ifdef INIT_SYSTEM
+#include <sys/reboot.h>
 #include <utmp.h>
+#endif
 
 int connfd;
 const char *sockpath;
