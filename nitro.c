@@ -238,6 +238,19 @@ stat_slash(const char *dir, const char *name, struct stat *st)
 	return stat(buf, st);
 }
 
+int
+stat_slash_to_at(const char *dir, const char *name, struct stat *st)
+{
+	char buf[PATH_MAX];
+	char *instance = strchr(dir, '@');
+	if (instance)
+		*instance = 0;
+	sprn(buf, buf + sizeof buf, "%s/%s", dir, name);
+	if (instance)
+		*instance = '@';
+	return stat(buf, st);
+}
+
 void process_step(int i, enum process_events ev);
 void notify(int);
 
@@ -247,7 +260,7 @@ proc_launch(int i)
 	services[i].setuppid = 0;
 
 	struct stat st;
-	if (stat_slash(services[i].name, "run", &st) < 0 && errno == ENOENT) {
+	if (stat_slash_to_at(services[i].name, "run", &st) < 0 && errno == ENOENT) {
 		services[i].pid = 0;
 		services[i].startstop = time_now();
 		services[i].state = PROC_ONESHOT;
@@ -266,6 +279,9 @@ proc_launch(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
+		char *instance = strchr(services[i].name, '@');
+		if (instance)
+			*instance++ = 0;
 		chdir(services[i].name);
 
 		setsid();
@@ -284,7 +300,10 @@ proc_launch(int i)
 			// else keep fd 1 to /dev/console
 		}
 
-		execle("run", "run", (char *)0, child_environ);
+		if (instance)
+			execle("run", "run", instance, (char *)0, child_environ);
+		else
+			execle("run", "run", (char *)0, child_environ);
 
 		status = (errno == ENOENT ? 127 : 126);
 		write(alivepipefd[1], &status, 1);
@@ -325,7 +344,7 @@ void
 proc_setup(int i)
 {
 	struct stat st;
-	if (stat_slash(services[i].name, "setup", &st) < 0 && errno == ENOENT) {
+	if (stat_slash_to_at(services[i].name, "setup", &st) < 0 && errno == ENOENT) {
 		services[i].state = PROC_SETUP;
 		process_step(i, EVNT_SETUP);
 		return;
@@ -333,6 +352,9 @@ proc_setup(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
+		char *instance = strchr(services[i].name, '@');
+		if (instance)
+			*instance++ = 0;
 		chdir(services[i].name);
 
 		setsid();
@@ -351,7 +373,10 @@ proc_setup(int i)
 			dup2(globallog[1], 1);
 		// else keep fd 1 to /dev/console
 
-		execle("setup", "setup", (char *)0, child_environ);
+		if (instance)
+			execle("setup", "setup", instance, (char *)0, child_environ);
+		else
+			execle("setup", "setup", (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
 		abort();	/* XXX handle retry */
@@ -373,7 +398,7 @@ proc_finish(int i)
 		return;
 
 	struct stat st;
-	if (stat_slash(services[i].name, "finish", &st) < 0 && errno == ENOENT) {
+	if (stat_slash_to_at(services[i].name, "finish", &st) < 0 && errno == ENOENT) {
 		process_step(i, EVNT_FINISHED);
 		return;
 	}
@@ -399,6 +424,9 @@ proc_finish(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
+		char *instance = strchr(services[i].name, '@');
+		if (instance)
+			*instance++ = 0;
 		chdir(services[i].name);
 
 		dup2(nullfd, 0);
@@ -410,7 +438,10 @@ proc_finish(int i)
 
 		setsid();
 
-		execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
+		if (instance)
+			execle("finish", "finish", run_status, run_signal, instance, (char *)0, child_environ);
+		else
+			execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
 		abort();	/* XXX handle retry */
@@ -765,7 +796,8 @@ rescan(int first)
 {
 	int i;
 	for (i = 0; i < max_service; i++)
-		services[i].seen = 0;
+		if (!strchr(services[i].name, '@'))
+			services[i].seen = 0;
 
 	struct dirent *ent;
 	rewinddir(cwd);
@@ -1055,7 +1087,7 @@ handle_control_sock() {
 	{
 		struct stat st;
 		int i = find_service(buf + 1);
-		if (stat(buf + 1, &st) == 0)
+		if (stat_slash_to_at(buf + 1, ".", &st) == 0)
 			i = add_service(buf + 1);
 		if (i < 0)
 			goto fail;
