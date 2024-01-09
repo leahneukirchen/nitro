@@ -39,13 +39,6 @@ deadline time_now()
 	return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
 }
 
-enum log_format {
-	LOGF_PLAIN = 1,
-	LOGF_KMSG,
-	// LOGF_NONE?
-};
-int log_format = LOGF_PLAIN;  /* when negative: use external logger */
-
 enum global_state {
 	GLBL_UP,
 	GLBL_WANT_SHUTDOWN,
@@ -95,12 +88,9 @@ int controlsock;
 int nullfd;
 int selfpipe[2];
 int globallog[2];
-int globaloutfd = 1;
 DIR *cwd;
 DIR *notifydir;
 char notifypath[256];
-char logbuf[4096];
-char *logbufend = logbuf;
 
 int pid1;
 int real_pid1;
@@ -289,8 +279,9 @@ proc_launch(int i)
 			dup2(nullfd, 0);
 			if (services[i].logpipe[1] != -1)
 				dup2(services[i].logpipe[1], 1);
-			else if (globallog[1] != -1)
+			else if (globallog[1] > 0)
 				dup2(globallog[1], 1);
+			// else keep fd 1 to /dev/console
 		}
 
 		execle("run", "run", (char *)0, child_environ);
@@ -321,7 +312,7 @@ proc_launch(int i)
 	close(alivepipefd[0]);
 
 	if (strcmp(services[i].name, "LOG") == 0)
-		log_format = -log_format;
+		globallog[1] = -globallog[1];
 
 	services[i].pid = child;
 	services[i].startstop = time_now();
@@ -356,8 +347,9 @@ proc_setup(int i)
 
 		if (services[i].logpipe[1] != -1)
 			dup2(services[i].logpipe[1], 1);
-		else if (globallog[1] != -1)
+		else if (globallog[1] > 0)
 			dup2(globallog[1], 1);
+		// else keep fd 1 to /dev/console
 
 		execle("setup", "setup", (char *)0, child_environ);
 		_exit(127);
@@ -412,8 +404,9 @@ proc_finish(int i)
 		dup2(nullfd, 0);
 		if (services[i].logpipe[1] != -1)
 			dup2(services[i].logpipe[1], 1);
-		else if (globallog[1] != -1)
+		else if (globallog[1] > 0)
 			dup2(globallog[1], 1);
+		// else keep fd 1 to /dev/console
 
 		setsid();
 
@@ -442,7 +435,7 @@ proc_shutdown(int i)
 	}
 
 	if (strcmp(services[i].name, "LOG") == 0)
-		log_format = -log_format;
+		globallog[1] = -globallog[1];
 
 	if (services[i].state != PROC_SHUTDOWN &&
 	    services[i].state != PROC_RESTART) {
@@ -1173,56 +1166,6 @@ has_died(pid_t pid, int status)
 	}
 }
 
-void
-write_global_log(char *log, size_t len)
-{
-	switch (log_format) {
-	case LOGF_PLAIN:
-		prn(globaloutfd, "%S\n", log, log + len);
-		break;
-	case LOGF_KMSG: {
-		// printk keeps track of time, we just need facility and level.
-		prn(globaloutfd, "<%d>nitro: %S\n",
-		    LOG_DAEMON | LOG_NOTICE, log, log + len);
-		break;
-	}
-	}
-}
-
-void
-read_global_log(int fd)
-{
-	size_t maxlen = logbuf + sizeof logbuf - logbufend;
-	ssize_t l = read(fd, logbufend, maxlen);
-
-	if (l == 0)
-		return;
-
-	if (l < 0)
-		abort();
-
-	logbufend += l;
-
-	char *linestart;
-	char *lineend;
-	for (linestart = logbuf;
-	     (lineend = memchr(linestart, '\n',
-		 sizeof logbuf - (linestart - logbuf)));
-	     linestart = lineend + 1) {
-		write_global_log(linestart, lineend - linestart);
-	}
-
-	if (linestart == logbuf) {
-		if ((int)l == (int)maxlen) {
-			write_global_log(logbuf, sizeof logbuf);
-			logbufend = logbuf;
-		}
-	} else {
-		memmove(logbuf, linestart, logbufend - logbuf);
-		logbufend -= linestart - logbuf;
-	}
-}
-
 /* only detects toplevel mount points */
 static int
 mounted(const char *dir)
@@ -1251,7 +1194,6 @@ init_mount() {
 
 #define CHLD 0
 #define CTRL 1
-#define GLOG 2
 
 int
 main(int argc, char *argv[])
@@ -1299,15 +1241,6 @@ main(int argc, char *argv[])
 		close(fd[1]);
 	}
 
-	if (access("/dev/kmsg", W_OK) == 0) {
-		if ((globaloutfd = open("/dev/kmsg",
-		    O_WRONLY | O_APPEND | O_CLOEXEC)) < 0) {
-			globaloutfd = 1;
-		} else {
-			log_format = LOGF_KMSG;
-		}
-	}
-
 	pipe(selfpipe);
 	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(selfpipe[1], F_SETFL, O_NONBLOCK);
@@ -1319,6 +1252,7 @@ main(int argc, char *argv[])
 	fcntl(globallog[1], F_SETFL, O_NONBLOCK);
 	fcntl(globallog[0], F_SETFD, FD_CLOEXEC);
 	fcntl(globallog[1], F_SETFD, FD_CLOEXEC);
+	globallog[1] = -globallog[1]; /* made active when LOG is started */
 
 	sigset_t allset;
 	sigfillset(&allset);
@@ -1349,13 +1283,11 @@ main(int argc, char *argv[])
 		}
 	}
 
-	struct pollfd fds[3];
+	struct pollfd fds[2];
 	fds[CHLD].fd = selfpipe[0];
 	fds[CHLD].events = POLLIN;
 	fds[CTRL].fd = controlsock;
 	fds[CTRL].events = POLLIN;
-	fds[GLOG].fd = globallog[0];
-	fds[GLOG].events = POLLIN;
 
 	while (1) {
 		deadline now = time_now();
@@ -1387,7 +1319,6 @@ main(int argc, char *argv[])
 
 		prn(1, "poll(timeout=%d)\n", timeout);
 
-		fds[GLOG].fd = (log_format < 0) ? -1 : globallog[0];
 		int r = 0;
 		do {
 			r = poll(fds, sizeof fds / sizeof fds[0], timeout);
@@ -1412,10 +1343,6 @@ main(int argc, char *argv[])
 
 		if (fds[CTRL].revents & POLLIN) {
 			handle_control_sock();
-		}
-
-		if (fds[GLOG].revents & POLLIN) {
-			read_global_log(fds[GLOG].fd);
 		}
 
 		if (want_rescan) {
