@@ -486,6 +486,10 @@ proc_shutdown(int i)
 void
 proc_kill(int i)
 {
+	assert(services[i].state == PROC_SHUTDOWN ||
+	    services[i].state == PROC_RESTART ||
+	    services[i].state == PROC_ONESHOT);
+
 	if (services[i].setuppid)
 		kill(services[i].setuppid, SIGKILL);
 
@@ -494,10 +498,6 @@ proc_kill(int i)
 
 	if (services[i].finishpid)
 		kill(services[i].finishpid, SIGKILL);
-
-	assert(services[i].state == PROC_SHUTDOWN ||
-	    services[i].state == PROC_RESTART ||
-	    services[i].state == PROC_ONESHOT);
 }
 
 void
