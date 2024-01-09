@@ -958,7 +958,7 @@ open_control_socket() {
 	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
 	umask(mask);
 	if (r < 0)
-		fatal("bind");
+		fatal("bind; errno=%d\n", errno);
 }
 
 void
