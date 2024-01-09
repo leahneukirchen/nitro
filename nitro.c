@@ -725,6 +725,8 @@ on_signal(int sig)
 	case SIGHUP:
 		want_rescan = 1;
 		break;
+	case SIGALRM:		/* just for EINTR */
+		break;
 	}
 
 	errno = old_errno;
@@ -1454,6 +1456,27 @@ main(int argc, char *argv[])
 	}
 
 #ifdef __linux__
+	if (pid1) {
+		prn(2, "- nitro: sending SIGTERM to all processes\n");
+		kill(-1, SIGTERM);
+		kill(-1, SIGCONT);
+
+		struct sigaction sa = {
+			.sa_handler = on_signal,
+			.sa_mask = allset,
+		};
+		sigaction(SIGALRM, &sa, 0);
+		alarm(3);
+
+		while(1) {
+			int r = waitpid(-1, 0, 0);
+			if (r < 0)
+				break;
+		}
+
+		prn(2, "- nitro: sending SIGKILL to all processes\n");
+		kill(-1, SIGKILL);
+	}
 	if (real_pid1) {
 		prn(2, "- nitro: system %s\n",
 		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
