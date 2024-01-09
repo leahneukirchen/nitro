@@ -710,9 +710,6 @@ on_signal(int sig)
 	int old_errno = errno;
 
 	switch (sig) {
-	case SIGCHLD:
-		write(selfpipe[1], "", 1);
-		break;
 	case SIGINT:
 		if (real_pid1)
 			want_reboot = 1;    /* Linux Ctrl-Alt-Delete */
@@ -725,9 +722,12 @@ on_signal(int sig)
 	case SIGHUP:
 		want_rescan = 1;
 		break;
+	case SIGCHLD:		/* just selfpipe */
 	case SIGALRM:		/* just for EINTR */
 		break;
 	}
+
+	write(selfpipe[1], "", 1);
 
 	errno = old_errno;
 }
@@ -1388,7 +1388,10 @@ main(int argc, char *argv[])
 		prn(1, "poll(timeout=%d)\n", timeout);
 
 		fds[GLOG].fd = (log_format < 0) ? -1 : globallog[0];
-		poll(fds, sizeof fds / sizeof fds[0], timeout);
+		int r = 0;
+		do {
+			r = poll(fds, sizeof fds / sizeof fds[0], timeout);
+		} while (r == -1 && errno == EINTR);
 
 		if (fds[CHLD].revents & POLLIN) {
 			char ch;
