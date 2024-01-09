@@ -3,6 +3,7 @@
 #endif
 
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <sys/utsname.h>
 #ifdef INIT_SYSTEM

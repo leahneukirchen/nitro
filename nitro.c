@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/un.h>
 #ifdef __linux__
@@ -21,6 +22,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
+#include <termios.h>
 #include <unistd.h>
 
 // no error message
