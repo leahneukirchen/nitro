@@ -438,6 +438,13 @@ proc_finish(int i)
 
 		setsid();
 
+		if (strcmp(services[i].name, "SYS") == 0) {
+			if (global_state == GLBL_WANT_REBOOT)
+				instance = (char *)"reboot";
+			else if (global_state == GLBL_WANT_SHUTDOWN)
+				instance = (char *)"shutdown";
+		}
+
 		if (instance)
 			execle("finish", "finish", run_status, run_signal, instance, (char *)0, child_environ);
 		else
