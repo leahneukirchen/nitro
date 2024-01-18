@@ -654,8 +654,12 @@ process_step(int i, enum process_events ev)
 		services[i].timeout = 0;
 		services[i].deadline = 0;
 		switch (services[i].state) {
-		case PROC_STARTING:
 		case PROC_UP:
+			services[i].state = PROC_RESTART;
+			proc_finish(i);
+			break;
+
+		case PROC_STARTING:
 		case PROC_RESTART:
 		case PROC_SHUTDOWN:
 		case PROC_FATAL:
