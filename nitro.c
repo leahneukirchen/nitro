@@ -797,6 +797,7 @@ add_service(const char *name)
 		services[i].logpipe[0] = -1;
 		services[i].logpipe[1] = -1;
 		services[i].state = PROC_DELAY;
+		services[i].startstop = time_now();
 		services[i].timeout = 1;
 		services[i].deadline = 0;
 		services[i].islog = 0;
