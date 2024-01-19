@@ -26,8 +26,14 @@
 #include <termios.h>
 #include <unistd.h>
 
-// no error message
+/* no stdio */
+#ifdef DEBUG
+#define assert(x)							   \
+	do { if(!(x)) { prn(2, "%s:%d: %s: error: assertion failed: %s\n", \
+	    __FILE__, __LINE__, __func__, #x); abort(); } } while(0);
+#else
 #define assert(x) do { if(!(x)) abort(); } while(0);
+#endif
 
 extern char **environ;
 char **child_environ;
