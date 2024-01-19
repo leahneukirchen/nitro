@@ -50,6 +50,8 @@ can contain several files:
   of `run` is connected to the standard input by a pipe.
 - `down`, an optional file that causes nitro to not bring up this
   service by default.
+- Service directories ending with '@' are ignored; they can be used
+  for parameterized services.
 
 You may find runit's `chpst` useful when writing `run` scripts.
 

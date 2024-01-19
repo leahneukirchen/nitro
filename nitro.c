@@ -259,10 +259,26 @@ stat_slash_to_at(const char *dir, const char *name, struct stat *st)
 	char *instance = strchr(dir, '@');
 	if (instance)
 		*instance = 0;
-	sprn(buf, buf + sizeof buf, "%s/%s", dir, name);
+	sprn(buf, buf + sizeof buf, "%s%s/%s", dir, "@"+!instance, name);
 	if (instance)
 		*instance = '@';
 	return stat(buf, st);
+}
+
+static char *
+chdir_at(char *dir)
+{
+	char *instance = strchr(dir, '@');
+	char s = 0;
+	if (instance) {
+		instance++;
+		s = *instance;
+		*instance = 0;
+	}
+	chdir(dir);
+	if (instance)
+		*instance = s;
+	return instance;
 }
 
 void process_step(int i, enum process_events ev);
@@ -293,10 +309,7 @@ proc_launch(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = strchr(services[i].name, '@');
-		if (instance)
-			*instance++ = 0;
-		chdir(services[i].name);
+		char *instance = chdir_at(services[i].name);
 
 		setsid();
 
@@ -366,10 +379,7 @@ proc_setup(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = strchr(services[i].name, '@');
-		if (instance)
-			*instance++ = 0;
-		chdir(services[i].name);
+		char *instance = chdir_at(services[i].name);
 
 		setsid();
 
@@ -438,10 +448,7 @@ proc_finish(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = strchr(services[i].name, '@');
-		if (instance)
-			*instance++ = 0;
-		chdir(services[i].name);
+		char *instance = chdir_at(services[i].name);
 
 		dup2(nullfd, 0);
 		if (services[i].logpipe[1] != -1)
@@ -836,6 +843,8 @@ rescan(int first)
 		if (stat(name, &st) < 0)
 			continue;
 		if (!S_ISDIR(st.st_mode))
+			continue;
+		if (name[strlen(name) - 1] == '@')
 			continue;
 
 		// ignore magic bootup/shutdown service
