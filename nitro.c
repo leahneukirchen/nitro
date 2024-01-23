@@ -618,12 +618,10 @@ process_step(int i, enum process_events ev)
 
 		case PROC_FATAL:
 		case PROC_DELAY:
+		case PROC_DOWN:
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 			services[i].deadline = 0;
-
-		case PROC_DOWN:
-			/* ignore, is down */
 			break;
 		}
 		break;
@@ -942,7 +940,10 @@ do_shutdown(int state)
 			int b = add_service("SYS");
 			services[b].state = PROC_ONESHOT;
 			process_step(b, EVNT_WANT_DOWN);
-			services[b].timeout = 30000;
+			if (services[b].state == PROC_DOWN)
+				do_stop_services();
+			else
+				services[b].timeout = 30000;
 		} else {
 			do_stop_services();
 		}
