@@ -1,10 +1,10 @@
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/wait.h>
+#include <sys/types.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #ifdef __linux__
 #include <sys/mount.h>
 #include <sys/reboot.h>
@@ -22,24 +22,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <time.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 /* no stdio */
 #ifdef DEBUG
-#define assert(x)							   \
-	do { if(!(x)) { prn(2, "%s:%d: %s: error: assertion failed: %s\n", \
-	    __FILE__, __LINE__, __func__, #x); abort(); } } while(0);
+#define assert(x)                                                           \
+	do { if (!(x)) { prn(2, "%s:%d: %s: error: assertion failed: %s\n", \
+	     __FILE__, __LINE__, __func__, #x); abort(); } } while (0);
 #else
-#define assert(x) do { if(!(x)) abort(); } while(0);
+#define assert(x) do { if (!(x)) abort(); } while (0);
 #endif
 
 extern char **environ;
 char **child_environ;
 char *envbuf[64];
 
-typedef int64_t deadline;		/* milliseconds since boot */
+typedef int64_t deadline;               /* milliseconds since boot */
 
 deadline time_now()
 {
@@ -71,9 +71,9 @@ enum process_events {
 	EVNT_WANT_UP,
 	EVNT_WANT_DOWN,
 	EVNT_WANT_RESTART,
-	EVNT_SETUP,		/* setup script exited */
+	EVNT_SETUP,             /* setup script exited */
 	EVNT_EXITED,
-	EVNT_FINISHED,		/* finish script exited */
+	EVNT_FINISHED,          /* finish script exited */
 	// EVNT_DIED,   health check failed
 };
 
@@ -111,58 +111,58 @@ volatile sig_atomic_t want_reboot;
 static char *
 stecpe(char *dst, const char *end, const char *src, const char *srcend)
 {
-        if (dst >= end)
-                return dst;
+	if (dst >= end)
+		return dst;
 
-        ptrdiff_t l = end - dst - 1;
-        size_t t = 1;
-        if (srcend - src < l) {
-                l = srcend - src;
-                t = 0;
-        }
+	ptrdiff_t l = end - dst - 1;
+	size_t t = 1;
+	if (srcend - src < l) {
+		l = srcend - src;
+		t = 0;
+	}
 
-        memcpy(dst, src, l);
-        dst[l] = 0;
+	memcpy(dst, src, l);
+	dst[l] = 0;
 
-        return dst + l + t;
+	return dst + l + t;
 }
 
 static char *
 stecpy(char *dst, char *end, const char *src)
 {
-        if (dst >= end)
-                return dst;
+	if (dst >= end)
+		return dst;
 
-        while (dst < end && (*dst = *src))
-                src++, dst++;
+	while (dst < end && (*dst = *src))
+		src++, dst++;
 
-        if (dst == end)
-                dst[-1] = 0;
+	if (dst == end)
+		dst[-1] = 0;
 
-        return dst;
+	return dst;
 }
 
 static char *
 steprl(char *dst, char *end, long n)
 {
-        if (dst >= end)
-                return end;
+	if (dst >= end)
+		return end;
 
-        char buf[24];
-        char *bufend = buf + sizeof buf;
-        char *s = bufend;
+	char buf[24];
+	char *bufend = buf + sizeof buf;
+	char *s = bufend;
 
-        unsigned long u = n < 0 ? -n : n;
+	unsigned long u = n < 0 ? -n : n;
 
-        do {
-                *--s = '0' + (u % 10);
-                u /= 10;
-        } while (u);
+	do {
+		*--s = '0' + (u % 10);
+		u /= 10;
+	} while (u);
 
-        if (n < 0)
-                *--s = '-';
+	if (n < 0)
+		*--s = '-';
 
-        return stecpe(dst, end, s, bufend);
+	return stecpe(dst, end, s, bufend);
 }
 
 size_t
@@ -336,7 +336,7 @@ proc_launch(int i)
 		write(alivepipefd[1], &status, 1);
 		_exit(status);
 	} else if (child < 0) {
-		abort();	/* XXX handle retry */
+		abort();        /* XXX handle retry */
 	}
 
 	close(alivepipefd[1]);
@@ -403,7 +403,7 @@ proc_setup(int i)
 			execle("setup", "setup", (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
-		abort();	/* XXX handle retry */
+		abort();        /* XXX handle retry */
 	}
 
 	// XXX use alivepipe?
@@ -472,7 +472,7 @@ proc_finish(int i)
 			execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
-		abort();	/* XXX handle retry */
+		abort();        /* XXX handle retry */
 	}
 
 	services[i].finishpid = child;
@@ -552,7 +552,7 @@ proc_zap(int i) {
 			services[i] = services[--max_service];
 		} else {
 			assert(i == 0);
-			services[i] = (struct service){ 0 };
+			services[i] = (struct service) { 0 };
 		}
 	}
 }
@@ -681,8 +681,8 @@ process_step(int i, enum process_events ev)
 
 		case PROC_SETUP:               /* can't happen */
 		case PROC_DOWN:                /* can't happen */
-		case PROC_DELAY:	       /* can't happen */
-		case PROC_ONESHOT:	       /* can't happen */
+		case PROC_DELAY:               /* can't happen */
+		case PROC_ONESHOT:             /* can't happen */
 			assert(!"invalid state transition");
 			break;
 		}
@@ -723,7 +723,7 @@ process_step(int i, enum process_events ev)
 
 		case PROC_SETUP:               /* can't happen */
 		case PROC_DOWN:                /* can't happen */
-		case PROC_DELAY:	       /* can't happen */
+		case PROC_DELAY:               /* can't happen */
 			assert(!"invalid state transition");
 			break;
 		}
@@ -778,8 +778,8 @@ on_signal(int sig)
 	case SIGHUP:
 		want_rescan = 1;
 		break;
-	case SIGCHLD:		/* just selfpipe */
-	case SIGALRM:		/* just for EINTR */
+	case SIGCHLD:           /* just selfpipe */
+	case SIGALRM:           /* just for EINTR */
 		break;
 	}
 
@@ -1280,7 +1280,7 @@ main(int argc, char *argv[])
 
 	// can't use putenv, which pulls in realloc
 	if (!getenv("PATH")) {
-		envbuf[0] = (char*) "PATH=" _PATH_DEFPATH;
+		envbuf[0] = (char *)"PATH=" _PATH_DEFPATH;
 		for (char **e = environ, **c = envbuf+1; *e; e++, c++)
 			*c = *e;
 		child_environ = envbuf;
@@ -1331,7 +1331,7 @@ main(int argc, char *argv[])
 	sigaction(SIGCHLD, &sa, 0);
 	sigaction(SIGHUP, &sa, 0);
 	sigaction(SIGINT, &sa, 0);
-	if (!real_pid1)		// only standalone and in containers
+	if (!real_pid1)         // only standalone and in containers
 		sigaction(SIGTERM, &sa, 0);
 
 	open_control_socket();
@@ -1465,7 +1465,7 @@ main(int argc, char *argv[])
 		sigaction(SIGALRM, &sa, 0);
 		alarm(3);
 
-		while(1) {
+		while (1) {
 			int r = waitpid(-1, 0, 0);
 			if (r < 0)
 				break;

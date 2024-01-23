@@ -102,7 +102,7 @@ send_and_wait(char cmd, const char *service)
 	sigaction(SIGALRM, &sa, 0);
 	alarm(5);
 
-	while(!timed_out) {
+	while (!timed_out) {
 		ssize_t rd;
 		char buf[64];
 
@@ -161,7 +161,7 @@ normalize(char *service)
 
 	char *end = strrchr(buf, '/');
 	if (strcmp(end, "/log") == 0)
-		while(end > buf && *--end != '/')
+		while (end > buf && *--end != '/')
 			;
 
 	return end + 1;
@@ -183,7 +183,7 @@ void write_wtmp(int boot) {
 	if ((fd = open(OUR_WTMP, O_WRONLY|O_APPEND)) < 0)
 		return;
 
-	struct utmp utmp = {0};
+	struct utmp utmp = { 0 };
 	struct utsname uname_buf;
 	struct timeval tv;
 
@@ -194,7 +194,7 @@ void write_wtmp(int boot) {
 	utmp.ut_type = boot ? BOOT_TIME : RUN_LVL;
 
 	strncpy(utmp.ut_name, boot ? "reboot" : "shutdown", sizeof utmp.ut_name);
-	strncpy(utmp.ut_id , "~~", sizeof utmp.ut_id);
+	strncpy(utmp.ut_id, "~~", sizeof utmp.ut_id);
 	strncpy(utmp.ut_line, boot ? "~" : "~~", sizeof utmp.ut_line);
 	if (uname(&uname_buf) == 0)
 		strncpy(utmp.ut_host, uname_buf.release, sizeof utmp.ut_host);
