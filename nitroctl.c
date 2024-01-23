@@ -318,7 +318,7 @@ main(int argc, char *argv[])
 		exit(111);
 	}
 
-	char *service = normalize(argv[2]);
+	char *service = argc > 2 ? normalize(argv[2]) : 0;
 
 	if (argv[1]) {
 		if (strcmp(argv[1], "start") == 0 && service)
