@@ -336,7 +336,13 @@ proc_launch(int i)
 		write(alivepipefd[1], &status, 1);
 		_exit(status);
 	} else if (child < 0) {
-		abort();        /* XXX handle retry */
+		/* fork failed, delay */
+		close(alivepipefd[0]);
+		close(alivepipefd[1]);
+		services[i].state = PROC_DELAY;
+		services[i].timeout = 2000;
+		services[i].deadline = 0;
+		return;
 	}
 
 	close(alivepipefd[1]);
@@ -403,7 +409,11 @@ proc_setup(int i)
 			execle("setup", "setup", (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
-		abort();        /* XXX handle retry */
+		/* fork failed, delay */
+		services[i].state = PROC_DELAY;
+		services[i].timeout = 2000;
+		services[i].deadline = 0;
+		return;
 	}
 
 	// XXX use alivepipe?
@@ -472,7 +482,9 @@ proc_finish(int i)
 			execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
 		_exit(127);
 	} else if (child < 0) {
-		abort();        /* XXX handle retry */
+		/* fork failed, skip over the finish script */
+		process_step(i, EVNT_FINISHED);
+		return;
 	}
 
 	services[i].finishpid = child;
