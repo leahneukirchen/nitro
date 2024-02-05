@@ -1414,10 +1414,11 @@ main(int argc, char *argv[])
 		while (1) {
 			int wstatus = 0;
 			int r = waitpid(-1, &wstatus, WNOHANG);
-			if (r == 0 || (r < 0 && errno == ECHILD))
+			if (r <= 0) {
+				if (r < 0 && errno != ECHILD)
+					prn(2, "- nitro: mysterious waitpid error: %d\n", errno);
 				break;
-			if (r < 0)
-				abort();
+			}
 			has_died(r, wstatus);
 		}
 
