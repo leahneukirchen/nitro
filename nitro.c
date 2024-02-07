@@ -1002,12 +1002,11 @@ open_control_socket() {
 		fatal("socket");
 	fcntl(controlsock, F_SETFD, FD_CLOEXEC);
 
-	unlink(path);
 	mode_t mask = umask(0077);
 	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
 	umask(mask);
 	if (r < 0)
-		fatal("bind; errno=%d\n", errno);
+		fatal("could not bind control socket: errno=%d\n", errno);
 }
 
 void
