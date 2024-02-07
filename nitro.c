@@ -1211,8 +1211,12 @@ has_died(pid_t pid, int status)
 
 			services[i].setuppid = 0;
 
-			if (status == 0) {
+			if (WEXITSTATUS(status) == 0) {
 				process_step(i, EVNT_SETUP);
+			} else if (WEXITSTATUS(status) == 111) {
+				services[i].state = PROC_FATAL;
+				services[i].wstatus = -1;
+				notify(i);
 			} else {
 				services[i].state = PROC_DELAY;
 				services[i].timeout = 1000;
