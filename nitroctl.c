@@ -60,9 +60,14 @@ notifysock(const char *service)
 	char *path = strdup(sockpath);
 	if (!path || !*path)
 		path = default_sock;
+	path = dirname(path);
 
 	snprintf(notifypath, sizeof notifypath,
-	    "%s/notify/%s,%ld", dirname(path), service, (long)getpid());
+	    "%s/notify/%s,%ld", path, service, (long)getpid());
+
+	for (char *s = notifypath + strlen(path) + strlen("/notify/"); *s; s++)
+		if (*s == '/')
+			*s = ',';
 
 	struct sockaddr_un my_addr = { 0 };
 	my_addr.sun_family = AF_UNIX;

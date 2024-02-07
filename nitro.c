@@ -1043,6 +1043,19 @@ open_control_socket() {
 		fatal("could not bind control socket: errno=%d\n", errno);
 }
 
+int
+notifyprefix(const char *name, const char *file)
+{
+	if (strncmp("ALL,", file, 4) == 0)
+		return 1;
+
+	// slashes are encoded as comma in the notify file name
+	while (*name && (*name == *file || (*name == '/' && *file == ',')))
+		name++, file++;
+
+	return *name == 0 && *file == ',';
+}
+
 void
 notify(int i)
 {
@@ -1058,9 +1071,8 @@ notify(int i)
 		if (name[0] == '.')
 			continue;
 
-		if ((strncmp(name, services[i].name, strlen(services[i].name)) == 0 &&
-		    name[strlen(services[i].name)] == ',') ||
-		    (strncmp("ALL,", name, 4) == 0)) {
+		if (notifyprefix(services[i].name, name)) {
+prn(2, "check %s to file %s passed\n", services[i].name, name);
 
 			struct sockaddr_un addr = { 0 };
 			addr.sun_family = AF_UNIX;
