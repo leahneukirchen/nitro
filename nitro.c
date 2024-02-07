@@ -305,8 +305,14 @@ proc_launch(int i)
 
 	unsigned char status;
 	int alivepipefd[2];
-	if (pipe(alivepipefd) < 0)
-		abort();
+	if (pipe(alivepipefd) < 0) {
+		/* pipe failed, delay */
+		prn(2, "- nitro: can't create status pipe: errno=%d\n", errno);
+		services[i].state = PROC_DELAY;
+		services[i].timeout = 2000;
+		services[i].deadline = 0;
+		return;
+	}
 	fcntl(alivepipefd[0], F_SETFD, FD_CLOEXEC);
 	fcntl(alivepipefd[1], F_SETFD, FD_CLOEXEC);
 
@@ -880,11 +886,16 @@ rescan(int first)
 			int j = add_service(buf);
 			services[j].islog = 1;
 			if (services[j].logpipe[0] == -1) {
-				pipe(services[i].logpipe);
-				fcntl(services[i].logpipe[0], F_SETFD, FD_CLOEXEC);
-				fcntl(services[i].logpipe[1], F_SETFD, FD_CLOEXEC);
-				services[j].logpipe[0] = services[i].logpipe[0];
-				services[j].logpipe[1] = services[i].logpipe[1];
+				if (pipe(services[i].logpipe) < 0) {
+					prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
+					services[i].logpipe[0] = -1;
+					services[i].logpipe[1] = -1;
+				} else {
+					fcntl(services[i].logpipe[0], F_SETFD, FD_CLOEXEC);
+					fcntl(services[i].logpipe[1], F_SETFD, FD_CLOEXEC);
+					services[j].logpipe[0] = services[i].logpipe[0];
+					services[j].logpipe[1] = services[i].logpipe[1];
+				}
 			}
 		}
 	}
