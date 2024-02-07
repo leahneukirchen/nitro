@@ -1373,7 +1373,8 @@ main(int argc, char *argv[])
 	if (nullfd < 0) {
 		// use a closed pipe instead
 		int fd[2];
-		pipe(fd);
+		if (pipe(fd) < 0)
+			abort();
 		nullfd = fd[0];
 		close(fd[1]);
 	}
