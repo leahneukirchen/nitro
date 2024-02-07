@@ -885,6 +885,12 @@ rescan(int first)
 		if (stat_slash(name, "log", &st) == 0 && S_ISDIR(st.st_mode)) {
 			int j = add_service(buf);
 			services[j].islog = 1;
+
+			if (first && stat_slash(buf, "down", &st) == 0) {
+				services[j].state = PROC_DOWN;
+				services[j].timeout = 0;
+			}
+
 			if (services[j].logpipe[0] == -1) {
 				if (pipe(services[i].logpipe) < 0) {
 					prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
