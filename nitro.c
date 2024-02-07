@@ -808,7 +808,7 @@ on_signal(int sig)
 }
 
 int
-find_service(char *name)
+find_service(const char *name)
 {
 	for (int i = 0; i < max_service; i++)
 		if (strcmp(services[i].name, name) == 0)
@@ -845,6 +845,47 @@ add_service(const char *name)
 	return i;
 }
 
+int
+add_log_service(char *name, int first)
+{
+	/* check loggee exists */
+	int j = -1;
+	int i = find_service(name);
+	if (i < 0)
+		return -1;
+
+	char buf[PATH_MAX];
+	sprn(buf, buf + sizeof buf, "%s/log", name);
+
+	struct stat st;
+	if (stat_slash_to_at(name, "log", &st) < 0 || !S_ISDIR(st.st_mode))
+		return -1;
+
+	j = add_service(buf);
+	services[j].islog = 1;
+
+	if (first && stat_slash(buf, "down", &st) == 0) {
+		services[j].state = PROC_DOWN;
+		services[j].timeout = 0;
+	}
+
+	if (services[j].logpipe[0] == -1) {
+		if (pipe(services[j].logpipe) < 0) {
+			prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
+			services[j].logpipe[0] = -1;
+			services[j].logpipe[1] = -1;
+		} else {
+			fcntl(services[j].logpipe[0], F_SETFD, FD_CLOEXEC);
+			fcntl(services[j].logpipe[1], F_SETFD, FD_CLOEXEC);
+		}
+	}
+
+	services[i].logpipe[0] = services[j].logpipe[0];
+	services[i].logpipe[1] = services[j].logpipe[1];
+
+	return j;
+}
+
 void
 rescan(int first)
 {
@@ -879,31 +920,7 @@ rescan(int first)
 			services[i].timeout = 0;
 		}
 
-		char buf[PATH_MAX];
-		sprn(buf, buf + sizeof buf, "%s/log", name);
-
-		if (stat_slash(name, "log", &st) == 0 && S_ISDIR(st.st_mode)) {
-			int j = add_service(buf);
-			services[j].islog = 1;
-
-			if (first && stat_slash(buf, "down", &st) == 0) {
-				services[j].state = PROC_DOWN;
-				services[j].timeout = 0;
-			}
-
-			if (services[j].logpipe[0] == -1) {
-				if (pipe(services[i].logpipe) < 0) {
-					prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
-					services[i].logpipe[0] = -1;
-					services[i].logpipe[1] = -1;
-				} else {
-					fcntl(services[i].logpipe[0], F_SETFD, FD_CLOEXEC);
-					fcntl(services[i].logpipe[1], F_SETFD, FD_CLOEXEC);
-					services[j].logpipe[0] = services[i].logpipe[0];
-					services[j].logpipe[1] = services[i].logpipe[1];
-				}
-			}
-		}
+		add_log_service(name, first);
 	}
 
 	for (i = 0; i < max_service; i++)
@@ -1156,8 +1173,11 @@ handle_control_sock() {
 	{
 		struct stat st;
 		int i = find_service(buf + 1);
-		if (stat_slash_to_at(buf + 1, ".", &st) == 0)
+		if (stat_slash_to_at(buf + 1, ".", &st) == 0) {
 			i = add_service(buf + 1);
+			if (!services[i].islog)
+				add_log_service(buf + 1, 0);
+		}
 		if (i < 0)
 			goto fail;
 
