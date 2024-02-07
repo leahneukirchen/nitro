@@ -826,9 +826,16 @@ add_service(const char *name)
 			break;
 
 	if (i == max_service) {
+		if (strlen(name) >= sizeof (services[i].name)) {
+			return -1;
+		}
+
+		if (max_service >= MAXSV - 1) {
+			prn(2, "- nitro: too many services, limit=%d\n", MAXSV);
+			return -1;
+		}
+
 		max_service++;
-		if (max_service >= MAXSV)
-			assert(!"out of services, nyi");
 
 		strcpy(services[i].name, name);
 		services[i].pid = 0;
@@ -862,6 +869,8 @@ add_log_service(char *name, int first)
 		return -1;
 
 	j = add_service(buf);
+	if (j < 0)
+		return -1;
 	services[j].islog = 1;
 
 	if (first && stat_slash(buf, "down", &st) == 0) {
@@ -914,6 +923,8 @@ rescan(int first)
 			continue;
 
 		int i = add_service(name);
+		if (i < 0)
+			continue;
 
 		if (first && stat_slash(name, "down", &st) == 0) {
 			services[i].state = PROC_DOWN;
@@ -1172,10 +1183,11 @@ handle_control_sock() {
 	case 'r':
 	{
 		struct stat st;
+
 		int i = find_service(buf + 1);
 		if (stat_slash_to_at(buf + 1, ".", &st) == 0) {
 			i = add_service(buf + 1);
-			if (!services[i].islog)
+			if (i >= 0 && !services[i].islog)
 				add_log_service(buf + 1, 0);
 		}
 		if (i < 0)
