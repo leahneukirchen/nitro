@@ -77,6 +77,9 @@ enum process_events {
 	// EVNT_DIED,   health check failed
 };
 
+/* max fd usage: 256 services with 256 loggers = 512 fd for logpipes + const. */
+#define MAXSV 512
+
 struct service {
 	char name[64];
 	deadline startstop;
@@ -90,7 +93,7 @@ struct service {
 	enum process_state state;
 	char seen;
 	char islog;
-} services[512];
+} services[MAXSV];
 
 int max_service = 0;
 int controlsock;
@@ -818,6 +821,8 @@ add_service(const char *name)
 
 	if (i == max_service) {
 		max_service++;
+		if (max_service >= MAXSV)
+			assert(!"out of services, nyi");
 
 		strcpy(services[i].name, name);
 		services[i].pid = 0;
