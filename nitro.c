@@ -1509,6 +1509,11 @@ main(int argc, char *argv[])
 		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
 
 		sync();
+		if (mount("/", "/", "", MS_REMOUNT | MS_RDONLY, "") < 0)
+			prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
+		else
+			prn(2, "- nitro: remounted / read-only\n");
+
 		sleep(1);
 
 		if (global_state == GLBL_WANT_REBOOT) {
