@@ -578,7 +578,6 @@ proc_zap(int i) {
 	}
 }
 
-
 void
 process_step(int i, enum process_events ev)
 {
@@ -777,7 +776,6 @@ process_step(int i, enum process_events ev)
 		break;
 	}
 }
-
 
 void
 on_signal(int sig)
@@ -984,7 +982,6 @@ do_shutdown(int state)
 
 		global_state = state;
 
-
 		struct stat st;
 		if (stat("SYS", &st) == 0) {
 			int b = add_service("SYS");
@@ -1083,7 +1080,6 @@ prn(2, "check %s to file %s passed\n", services[i].name, name);
 			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr);
 		}
 	}
-
 }
 
 int
@@ -1423,14 +1419,12 @@ main(int argc, char *argv[])
 
 	prn(2, "- nitro: booting\n");
 
-	{
-		struct stat st;
-		if (stat("SYS", &st) == 0) {
-			int b = add_service("SYS");
-			process_step(b, EVNT_WANT_UP);
-		} else {
-			rescan(1);
-		}
+	struct stat st;
+	if (stat("SYS", &st) == 0) {
+		int b = add_service("SYS");
+		process_step(b, EVNT_WANT_UP);
+	} else {
+		rescan(1);
 	}
 
 	struct pollfd fds[2];
