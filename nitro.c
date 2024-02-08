@@ -1548,7 +1548,7 @@ main(int argc, char *argv[])
 		};
 		sigaction(SIGALRM, &sa, 0);
 
-		alarm(3);
+		alarm(7);
 		while (1) {
 			int r = waitpid(-1, 0, 0);
 			if (r < 0)
