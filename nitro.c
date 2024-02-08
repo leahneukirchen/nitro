@@ -1547,13 +1547,14 @@ main(int argc, char *argv[])
 			.sa_mask = allset,
 		};
 		sigaction(SIGALRM, &sa, 0);
-		alarm(3);
 
+		alarm(3);
 		while (1) {
 			int r = waitpid(-1, 0, 0);
 			if (r < 0)
 				break;
 		}
+		alarm(0);
 
 		prn(2, "- nitro: sending SIGKILL to all processes\n");
 		kill(-1, SIGKILL);
