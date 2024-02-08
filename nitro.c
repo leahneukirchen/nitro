@@ -1568,14 +1568,14 @@ main(int argc, char *argv[])
 		alarm(0);
 	}
 	if (real_pid1) {
-		prn(2, "- nitro: system %s\n",
-		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
-
 		sync();
 		if (mount("/", "/", "", MS_REMOUNT | MS_RDONLY, "") < 0)
 			prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
 		else
 			prn(2, "- nitro: remounted / read-only\n");
+
+		prn(2, "- nitro: system %s\n",
+		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
 
 		sleep(1);
 
