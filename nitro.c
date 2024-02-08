@@ -1558,6 +1558,14 @@ main(int argc, char *argv[])
 
 		prn(2, "- nitro: sending SIGKILL to all processes\n");
 		kill(-1, SIGKILL);
+
+		alarm(1);
+		while (1) {
+			int r = waitpid(-1, 0, 0);
+			if (r < 0)
+				break;
+		}
+		alarm(0);
 	}
 	if (real_pid1) {
 		prn(2, "- nitro: system %s\n",
