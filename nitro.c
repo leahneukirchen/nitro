@@ -50,8 +50,10 @@ deadline time_now()
 
 enum global_state {
 	GLBL_UP,
-	GLBL_WANT_SHUTDOWN,
-	GLBL_WANT_REBOOT,
+	GLBL_SHUTDOWN,
+	GLBL_WAIT_TERM,
+	GLBL_WAIT_KILL,
+	GLBL_FINISH,
 } global_state;
 
 enum process_state {
@@ -286,6 +288,7 @@ chdir_at(char *dir)
 
 void process_step(int i, enum process_events ev);
 void notify(int);
+void slayall();
 
 void
 proc_launch(int i)
@@ -479,9 +482,9 @@ proc_finish(int i)
 		setsid();
 
 		if (strcmp(services[i].name, "SYS") == 0) {
-			if (global_state == GLBL_WANT_REBOOT)
+			if (want_reboot)
 				instance = (char *)"reboot";
-			else if (global_state == GLBL_WANT_SHUTDOWN)
+			else
 				instance = (char *)"shutdown";
 		}
 
@@ -752,6 +755,12 @@ process_step(int i, enum process_events ev)
 		services[i].deadline = 0;
 		switch (services[i].state) {
 		case PROC_DELAY:
+			if (global_state == GLBL_WAIT_TERM) {
+				slayall();
+				break;
+			} else if (global_state == GLBL_WAIT_KILL) {
+				global_state = GLBL_FINISH;
+			}
 			proc_setup(i);
 			break;
 
@@ -964,12 +973,14 @@ do_stop_services() {
 }
 
 void
-do_shutdown(int state)
+do_shutdown()
 {
 	if (global_state == GLBL_UP) {
-		if (state == GLBL_WANT_REBOOT)
+		global_state = GLBL_SHUTDOWN;
+
+		if (want_reboot)
 			prn(2, "- nitro: rebooting\n");
-		else if (state == GLBL_WANT_SHUTDOWN)
+		else
 			prn(2, "- nitro: shutting down\n");
 
 		if (pid1)
@@ -977,8 +988,6 @@ do_shutdown(int state)
 #ifdef __linux__
 		reboot(RB_ENABLE_CAD);
 #endif
-
-		global_state = state;
 
 		struct stat st;
 		if (stat("SYS", &st) == 0) {
@@ -993,8 +1002,6 @@ do_shutdown(int state)
 			do_stop_services();
 		}
 	}
-
-	global_state = state;
 }
 
 void
@@ -1305,6 +1312,8 @@ has_died(pid_t pid, int status)
 
 		// XXX handle logger?
 	}
+
+	dprn("reaping unknown child %d\n", pid);
 }
 
 /* only detects toplevel mount points */
@@ -1322,13 +1331,49 @@ mounted(const char *dir)
 }
 
 void
-init_mount() {
+init_mount()
+{
 #ifdef __linux__
-	if (!access("/dev/null", F_OK) && !mounted("/dev"))
+	if (access("/dev/null", F_OK) == 0 && !mounted("/dev"))
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
 	if (!mounted("/run"))
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
 #endif
+}
+
+void
+killall()
+{
+	prn(2, "- nitro: sending SIGTERM to all processes\n");
+	kill(-1, SIGTERM);
+	kill(-1, SIGCONT);
+	global_state = GLBL_WAIT_TERM;
+
+	int r = waitpid(-1, 0, WNOHANG);
+	if (r < 0 && errno == ECHILD)
+		global_state = GLBL_FINISH;
+
+	int i = add_service(".SHUTDOWN");
+	services[i].state = PROC_DELAY;
+	services[i].timeout = 7000;
+	services[i].deadline = 0;
+}
+
+void
+slayall()
+{
+	prn(2, "- nitro: sending SIGKILL to all processes\n");
+	kill(-1, SIGKILL);
+	global_state = GLBL_WAIT_KILL;
+
+	int r = waitpid(-1, 0, WNOHANG);
+	if (r < 0 && errno == ECHILD)
+		global_state = GLBL_FINISH;
+
+	int i = add_service(".SHUTDOWN");
+	services[i].state = PROC_DELAY;
+	services[i].timeout = 3000;
+	services[i].deadline = 0;
 }
 
 #undef CTRL
@@ -1474,9 +1519,13 @@ main(int argc, char *argv[])
 		while (1) {
 			int wstatus = 0;
 			int r = waitpid(-1, &wstatus, WNOHANG);
-			if (r <= 0) {
-				if (r < 0 && errno != ECHILD)
+			if (r == 0)
+				break;
+			if (r < 0) {
+				if (errno != ECHILD)
 					prn(2, "- nitro: mysterious waitpid error: %d\n", errno);
+				if (global_state >= GLBL_WAIT_TERM && errno == ECHILD)
+					global_state = GLBL_FINISH;
 				break;
 			}
 			has_died(r, wstatus);
@@ -1491,15 +1540,11 @@ main(int argc, char *argv[])
 			want_rescan = 0;
 		}
 
-		if (want_shutdown) {
-			do_shutdown(GLBL_WANT_SHUTDOWN);
+		if (want_shutdown || want_reboot) {
+			do_shutdown();
 		}
 
-		if (want_reboot) {
-			do_shutdown(GLBL_WANT_REBOOT);
-		}
-
-		if (global_state != GLBL_UP) {
+		if (global_state == GLBL_SHUTDOWN) {
 			int up = 0;
 			int uplog = 0;
 			for (i = 0; i < max_service; i++) {
@@ -1521,43 +1566,31 @@ main(int argc, char *argv[])
 							process_step(i, EVNT_WANT_DOWN);
 				}
 			} else {
-				break;
+				if (!pid1)
+					break;
+				killall();
 			}
 		}
+
+		if (global_state == GLBL_FINISH)
+			break;
 	}
 
 #ifdef __linux__
-	if (pid1) {
-		prn(2, "- nitro: sending SIGTERM to all processes\n");
-		kill(-1, SIGTERM);
-		kill(-1, SIGCONT);
-
-		struct sigaction sa = {
-			.sa_handler = on_signal,
-			.sa_mask = allset,
-		};
-		sigaction(SIGALRM, &sa, 0);
-
-		alarm(7);
-		while (1) {
-			int r = waitpid(-1, 0, 0);
-			if (r < 0)
-				break;
-		}
-		alarm(0);
-
-		prn(2, "- nitro: sending SIGKILL to all processes\n");
-		kill(-1, SIGKILL);
-
-		alarm(1);
-		while (1) {
-			int r = waitpid(-1, 0, 0);
-			if (r < 0)
-				break;
-		}
-		alarm(0);
-	}
 	if (real_pid1) {
+		if (access("SYS/final", X_OK) == 0) {
+			prn(2, "- nitro: starting SYS/final\n");
+			pid_t child = fork();
+			if (child == 0) {
+				execle("SYS/final", "final", (char *)0, child_environ);
+				_exit(127);
+			} else if (child > 0) {
+				// XXX timeout
+				waitpid(child, 0, 0);
+				prn(2, "- nitro: SYS/final finished\n");
+			}
+		}
+
 		sync();
 		if (mount("/", "/", "", MS_REMOUNT | MS_RDONLY, "") < 0)
 			prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
@@ -1565,11 +1598,11 @@ main(int argc, char *argv[])
 			prn(2, "- nitro: remounted / read-only\n");
 
 		prn(2, "- nitro: system %s\n",
-		    global_state == GLBL_WANT_REBOOT ? "reboot" : "halt");
+		    want_reboot ? "reboot" : "halt");
 
 		sleep(1);
 
-		if (global_state == GLBL_WANT_REBOOT) {
+		if (want_reboot) {
 			reboot(RB_AUTOBOOT);
 		} else {
 			// falls back to RB_HALT_SYSTEM if not possible
