@@ -940,8 +940,6 @@ rescan(int first)
 void
 own_console()
 {
-	return;
-
 	int ttyfd = open("/dev/console", O_RDWR);
 	if (ttyfd < 0)
 		return;
