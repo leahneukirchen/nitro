@@ -1069,8 +1069,6 @@ notify(int i)
 			continue;
 
 		if (notifyprefix(services[i].name, name)) {
-prn(2, "check %s to file %s passed\n", services[i].name, name);
-
 			struct sockaddr_un addr = { 0 };
 			addr.sun_family = AF_UNIX;
 			strncpy(addr.sun_path, notifypath, sizeof addr.sun_path - 1);
