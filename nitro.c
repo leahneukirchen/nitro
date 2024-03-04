@@ -830,76 +830,63 @@ add_service(const char *name)
 	int i;
 	for (i = 0; i < max_service; i++)
 		if (strcmp(services[i].name, name) == 0)
-			break;
+			return i;
 
-	if (i == max_service) {
-		if (strlen(name) >= sizeof (services[i].name)) {
-			return -1;
-		}
+	/* else set up a new service */
 
-		if (max_service >= MAXSV - 1) {
-			prn(2, "- nitro: too many services, limit=%d\n", MAXSV);
-			return -1;
-		}
+	if (strlen(name) >= sizeof (services[i].name)) {
+		return -1;
+	} else if (max_service >= MAXSV - 1) {
+		prn(2, "- nitro: too many services, limit=%d\n", MAXSV);
+		return -1;
+	}
 
-		max_service++;
+	max_service++;
 
-		strcpy(services[i].name, name);
-		services[i].pid = 0;
+	strcpy(services[i].name, name);
+	services[i].pid = 0;
+	services[i].state = PROC_DELAY;
+	services[i].startstop = time_now();
+	services[i].timeout = 1;
+	services[i].deadline = 0;
+	services[i].islog = 0;
+
+	char log_target[PATH_MAX];
+	char log_link[PATH_MAX];
+	sprn(log_link, log_link + sizeof log_link, "%s/log", name);
+
+	ssize_t r = readlink(log_link, log_target, sizeof log_target - 1);
+	if (r < 0 || (size_t)r >= sizeof log_target - 1) {
+		if (errno == EINVAL)
+			prn(2, "warning: ignoring log, it is not a symlink: %s\n", name);
 		services[i].logpipe[0] = -1;
 		services[i].logpipe[1] = -1;
-		services[i].state = PROC_DELAY;
-		services[i].startstop = time_now();
-		services[i].timeout = 1;
-		services[i].deadline = 0;
-		services[i].islog = 0;
-	}
+	} else {
+		log_target[r] = 0;
+		char *target_name = strrchr(log_target, '/');
+		if (target_name)
+			target_name++;
+		else
+			target_name = log_target;
 
-	services[i].seen = 1;
-	return i;
-}
-
-int
-add_log_service(char *name, int first)
-{
-	/* check loggee exists */
-	int j = -1;
-	int i = find_service(name);
-	if (i < 0)
-		return -1;
-
-	char buf[PATH_MAX];
-	sprn(buf, buf + sizeof buf, "%s/log", name);
-
-	struct stat st;
-	if (stat_slash_to_at(name, "log", &st) < 0 || !S_ISDIR(st.st_mode))
-		return -1;
-
-	j = add_service(buf);
-	if (j < 0)
-		return -1;
-	services[j].islog = 1;
-
-	if (first && stat_slash(buf, "down", &st) == 0) {
-		services[j].state = PROC_DOWN;
-		services[j].timeout = 0;
-	}
-
-	if (services[j].logpipe[0] == -1) {
-		if (pipe(services[j].logpipe) < 0) {
-			prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
-			services[j].logpipe[0] = -1;
-			services[j].logpipe[1] = -1;
-		} else {
-			fcntl(services[j].logpipe[0], F_SETFD, FD_CLOEXEC);
-			fcntl(services[j].logpipe[1], F_SETFD, FD_CLOEXEC);
+		int j = add_service(target_name);
+		services[j].islog = 1;
+		if (services[j].logpipe[0] == -1) {
+			if (pipe(services[j].logpipe) < 0) {
+				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
+				services[j].logpipe[0] = -1;
+				services[j].logpipe[1] = -1;
+			} else {
+				fcntl(services[j].logpipe[0], F_SETFD, FD_CLOEXEC);
+				fcntl(services[j].logpipe[1], F_SETFD, FD_CLOEXEC);
+			}
 		}
+
+		services[i].logpipe[0] = services[j].logpipe[0];
+		services[i].logpipe[1] = services[j].logpipe[1];
 	}
 
-	services[i].logpipe[0] = services[j].logpipe[0];
-	services[i].logpipe[1] = services[j].logpipe[1];
-
-	return j;
+	return i;
 }
 
 void
@@ -933,12 +920,12 @@ rescan(int first)
 		if (i < 0)
 			continue;
 
+		services[i].seen = 1;
+
 		if (first && stat_slash(name, "down", &st) == 0) {
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 		}
-
-		add_log_service(name, first);
 	}
 
 	for (i = 0; i < max_service; i++)
@@ -1196,11 +1183,8 @@ handle_control_sock() {
 		struct stat st;
 
 		int i = find_service(buf + 1);
-		if (stat_slash_to_at(buf + 1, ".", &st) == 0) {
+		if (stat_slash_to_at(buf + 1, ".", &st) == 0)
 			i = add_service(buf + 1);
-			if (i >= 0 && !services[i].islog)
-				add_log_service(buf + 1, 0);
-		}
 		if (i < 0)
 			goto fail;
 

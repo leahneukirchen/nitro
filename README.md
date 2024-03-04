@@ -46,8 +46,9 @@ can contain several files:
   process finished.  It is passed two arguments, the exit status
   of the `run` process (or -1 if it was killed by a signal)
   and the signal that killed it (or 0, if it exited regularly).
-- `log`, another service that is brought up.  The standard output
-  of `run` is connected to the standard input by a pipe.
+- `log`, a symlink to another service directory.
+  The standard output of `run` is connected to the standard input of the
+  service under `log` by a pipe.
 - `down`, an optional file that causes nitro to not bring up this
   service by default.
 - Service directories ending with '@' are ignored; they can be used
@@ -58,7 +59,7 @@ You may find runit's `chpst` useful when writing `run` scripts.
 ## Special services
 
 - `LOG`: this service is used as a logging service for all services
-  that don't have a `log` directory.
+  that don't have a `log` symlink.
 - `SYS`: `SYS/setup` is run before other services are brought up.
   You can already use `nitroctl` in `rc.boot/setup` to bring up services
   in a certain order.
