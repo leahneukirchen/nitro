@@ -61,7 +61,7 @@ You may find runit's `chpst` useful when writing `run` scripts.
 - `LOG`: this service is used as a logging service for all services
   that don't have a `log` symlink.
 - `SYS`: `SYS/setup` is run before other services are brought up.
-  You can already use `nitroctl` in `rc.boot/setup` to bring up services
+  You can already use `nitroctl` in `SYS/setup` to bring up services
   in a certain order.
   `SYS/finish` is run before all remaining services are killed and the
   system is brought down.
