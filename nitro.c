@@ -1333,10 +1333,6 @@ killall()
 	kill(-1, SIGCONT);
 	global_state = GLBL_WAIT_TERM;
 
-	int r = waitpid(-1, 0, WNOHANG);
-	if (r < 0 && errno == ECHILD)
-		global_state = GLBL_FINISH;
-
 	int i = add_service(".SHUTDOWN");
 	services[i].state = PROC_DELAY;
 	services[i].timeout = 7000;
@@ -1349,10 +1345,6 @@ slayall()
 	prn(2, "- nitro: sending SIGKILL to all processes\n");
 	kill(-1, SIGKILL);
 	global_state = GLBL_WAIT_KILL;
-
-	int r = waitpid(-1, 0, WNOHANG);
-	if (r < 0 && errno == ECHILD)
-		global_state = GLBL_FINISH;
 
 	int i = add_service(".SHUTDOWN");
 	services[i].state = PROC_DELAY;
