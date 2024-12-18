@@ -97,7 +97,7 @@ struct service {
 	char islog;
 } services[MAXSV];
 
-int max_service = 0;
+int max_service;
 int controlsock;
 int nullfd;
 int selfpipe[2];
