@@ -187,8 +187,6 @@ sprn(char *out, char *oute, const char *fmt, ...)
 				out = stecpy(out, oute, va_arg(ap, char *));
 			} else if (*s == 'c') {
 				*out++ = va_arg(ap, int);
-			} else if (*s == '%') {
-				*out++ = '%';
 			} else {
 				abort();
 			}
@@ -221,14 +219,6 @@ prn(int fd, const char *fmt, ...)
 				out = steprl(out, oute, (int)va_arg(ap, int));
 			} else if (*s == 's') {
 				out = stecpy(out, oute, va_arg(ap, char *));
-			} else if (*s == 'S') {
-				char *s = va_arg(ap, char *);
-				char *se = va_arg(ap, char *);
-				out = stecpe(out, oute, s, se);
-//			} else if (*s == 'c') {
-//				*out++ = va_arg(ap, int);
-			} else if (*s == '%') {
-				*out++ = '%';
 			} else {
 				abort();
 			}
@@ -1577,6 +1567,7 @@ main(int argc, char *argv[])
 		    want_reboot ? "reboot" : "halt");
 
 		sleep(1);
+		sleep(20);
 
 		if (want_reboot) {
 			reboot(RB_AUTOBOOT);
