@@ -37,7 +37,8 @@
 
 extern char **environ;
 char **child_environ;
-char *envbuf[64];
+#define ENVSIZE 64
+char *envbuf[ENVSIZE+1];
 
 typedef int64_t deadline;               /* milliseconds since boot */
 
@@ -1366,8 +1367,9 @@ main(int argc, char *argv[])
 	// can't use putenv, which pulls in realloc
 	if (!getenv("PATH")) {
 		envbuf[0] = (char *)"PATH=" _PATH_DEFPATH;
-		for (char **e = environ, **c = envbuf+1; *e; e++, c++)
-			*c = *e;
+		for (i = 1; i < ENVSIZE && environ[i - 1]; i++)
+			envbuf[i] = environ[i - 1];
+		envbuf[i] = 0;
 		child_environ = envbuf;
 	} else {
 		child_environ = environ;
