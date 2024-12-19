@@ -796,7 +796,6 @@ on_signal(int sig)
 		want_rescan = 1;
 		break;
 	case SIGCHLD:           /* just selfpipe */
-	case SIGALRM:           /* just for EINTR */
 		break;
 	}
 
