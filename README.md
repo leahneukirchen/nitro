@@ -133,8 +133,6 @@ It will mount `/dev` and `/run` when required, everything else
 should be done with `SYS/setup`.
 When receiving Ctrl-Alt-Delete, nitro triggers an orderly reboot.
 
-When possible, nitro logs output to `dmesg` while no `LOG` is running.
-
 ## Nitro as init for a Docker container
 
 Nitro is compiled statically, so you can copy it into your container easily:
