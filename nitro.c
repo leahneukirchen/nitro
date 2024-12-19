@@ -1569,7 +1569,6 @@ main(int argc, char *argv[])
 		    want_reboot ? "reboot" : "halt");
 
 		sleep(1);
-		sleep(20);
 
 		if (want_reboot) {
 			reboot(RB_AUTOBOOT);
