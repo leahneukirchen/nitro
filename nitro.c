@@ -1546,15 +1546,26 @@ main(int argc, char *argv[])
 #ifdef __linux__
 	if (real_pid1) {
 		if (access("SYS/final", X_OK) == 0) {
-			prn(2, "- nitro: starting SYS/final\n");
+			prn(2, "- nitro: SYS/final starting\n");
 			pid_t child = fork();
-			if (child == 0) {
+			if (child < 0) {
+				prn(2, "- nitro: SYS/final failed to exec: errno=%d\n", errno);
+			} else if (child == 0) {
 				execle("SYS/final", "final", (char *)0, child_environ);
 				_exit(127);
-			} else if (child > 0) {
-				// XXX timeout
-				waitpid(child, 0, 0);
-				prn(2, "- nitro: SYS/final finished\n");
+			} else {
+				int wstatus = 0;
+				char ch;
+				while (read(selfpipe[0], &ch, 1) == 1)
+					;
+				poll(fds, 1, 30000);
+				if (waitpid(child, &wstatus, WNOHANG) == child) {
+					prn(2, "- nitro: SYS/final finished with status %d\n", WEXITSTATUS(wstatus));
+				} else {
+					kill(child, SIGKILL);
+					waitpid(child, &wstatus, 0);
+					prn(2, "- nitro: SYS/final terminated after timeout\n");
+				}
 			}
 		}
 
