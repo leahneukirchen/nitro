@@ -979,6 +979,7 @@ void
 do_stop_services() {
 	global_state = GLBL_SHUTDOWN;
 
+	int up = 0;
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].islog)
 			continue;
@@ -986,7 +987,14 @@ do_stop_services() {
 			continue;
 
 		process_step(i, EVNT_WANT_DOWN);
+
+		if (!(services[i].state == PROC_DOWN ||
+		    services[i].state == PROC_FATAL))
+			up++;
 	}
+
+	if (up)
+		prn(2, "- nitro: waiting for %d services to finish", up);
 }
 
 void
@@ -1565,7 +1573,7 @@ main(int argc, char *argv[])
 				}
 			}
 			if (up) {
-				prn(2, "- nitro: waiting for %d processes to finish\n", up);
+				prn(2, ".");
 				if (up == uplog) {
 					dprn("signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
@@ -1573,6 +1581,7 @@ main(int argc, char *argv[])
 							process_step(i, EVNT_WANT_DOWN);
 				}
 			} else {
+				prn(2, " done.\n");
 				if (!pid1)
 					break;
 				killall();
