@@ -1301,7 +1301,7 @@ has_died(pid_t pid, int status)
 				proc_zap(i);
 				// bring up rest of the services
 
-				prn(2, "- nitro: SYS/setup finished\n");
+				prn(2, "- nitro: SYS/setup finished with status %d\n", status);
 
 				rescan(1);
 			}
