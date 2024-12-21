@@ -30,9 +30,9 @@
 #ifdef DEBUG
 #define assert(x)                                                           \
 	do { if (!(x)) { prn(2, "%s:%d: %s: error: assertion failed: %s\n", \
-	     __FILE__, __LINE__, __func__, #x); abort(); } } while (0);
+	     __FILE__, __LINE__, __func__, #x); abort(); } } while (0)
 #else
-#define assert(x) do { if (!(x)) abort(); } while (0);
+#define assert(x) do { if (!(x)) abort(); } while (0)
 #endif
 
 extern char **environ;
