@@ -94,7 +94,11 @@ struct service {
 	pid_t finishpid;
 	int wstatus;
 	int logpipe[2];
+#ifdef DEBUG
 	enum process_state state;
+#else
+	char /* enum process_state */ state;
+#endif
 	char seen;
 	char islog;
 } services[MAXSV];
