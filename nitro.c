@@ -557,6 +557,8 @@ proc_cleanup(int i)
 			close(services[i].logpipe[0]);
 		if (services[i].logpipe[1] > 0)
 			close(services[i].logpipe[1]);
+		services[i].logpipe[0] = -1;
+		services[i].logpipe[1] = -1;
 	}
 
 	notify(i);
@@ -564,7 +566,26 @@ proc_cleanup(int i)
 
 void
 proc_zap(int i) {
-	// XXX clean up log pipe?
+	/* close the logpipe and remove all references to it */
+	if (services[i].islog) {
+		int fd;
+
+		fd = services[i].logpipe[0];
+		if (fd > 0) {
+			for (int i = 0; i < max_service; i++)
+				if (services[i].logpipe[0] == fd)
+					services[i].logpipe[0] = -1;
+			close(fd);
+		}
+
+		fd = services[i].logpipe[1];
+		if (fd > 0) {
+			for (int i = 0; i < max_service; i++)
+				if (services[i].logpipe[1] == fd)
+					services[i].logpipe[1] = -1;
+			close(fd);
+		}
+	}
 
 	if (!services[i].seen) {
 		dprn("can garbage-collect %s\n", services[i].name);
@@ -826,7 +847,7 @@ add_service(const char *name)
 	int i;
 	for (i = 0; i < max_service; i++)
 		if (strcmp(services[i].name, name) == 0)
-			return i;
+			goto refresh_log;
 
 	/* else set up a new service */
 
@@ -847,6 +868,10 @@ add_service(const char *name)
 	services[i].deadline = 0;
 	services[i].islog = 0;
 
+refresh_log:
+	if (services[i].islog)
+		return i;
+
 	char log_target[PATH_MAX];
 	char log_link[PATH_MAX];
 	sprn(log_link, log_link + sizeof log_link, "%s/log", name);
@@ -858,6 +883,7 @@ add_service(const char *name)
 		services[i].logpipe[0] = -1;
 		services[i].logpipe[1] = -1;
 	} else {
+		/* just interpret the last path segment as service name */
 		log_target[r] = 0;
 		char *target_name = strrchr(log_target, '/');
 		if (target_name)
@@ -866,6 +892,7 @@ add_service(const char *name)
 			target_name = log_target;
 
 		int j = add_service(target_name);
+		int waslog = services[j].islog;
 		services[j].islog = 1;
 		if (services[j].logpipe[0] == -1) {
 			if (pipe(services[j].logpipe) < 0) {
@@ -880,6 +907,9 @@ add_service(const char *name)
 
 		services[i].logpipe[0] = services[j].logpipe[0];
 		services[i].logpipe[1] = services[j].logpipe[1];
+
+		if (!waslog)
+			process_step(j, EVNT_WANT_RESTART);
 	}
 
 	return i;
@@ -905,6 +935,8 @@ rescan(int first)
 			continue;
 		if (!S_ISDIR(st.st_mode))
 			continue;
+
+		// ignore parametrized services
 		if (name[strlen(name) - 1] == '@')
 			continue;
 
