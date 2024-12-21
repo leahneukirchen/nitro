@@ -867,6 +867,8 @@ add_service(const char *name)
 	services[i].timeout = 1;
 	services[i].deadline = 0;
 	services[i].islog = 0;
+	if (strcmp(services[i].name, "LOG") == 0)
+		services[i].islog = 1;
 
 refresh_log:
 	if (services[i].islog)
@@ -982,8 +984,6 @@ do_stop_services() {
 	int up = 0;
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].islog)
-			continue;
-		if (strcmp(services[i].name, "LOG") == 0)
 			continue;
 
 		process_step(i, EVNT_WANT_DOWN);
@@ -1568,8 +1568,6 @@ main(int argc, char *argv[])
 					up++;
 					if (services[i].islog)
 						uplog++;
-					if (strcmp(services[i].name, "LOG") == 0)
-						uplog++;
 				}
 			}
 			if (up) {
@@ -1577,7 +1575,7 @@ main(int argc, char *argv[])
 				if (up == uplog) {
 					dprn("signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
-						if (services[i].islog || strcmp(services[i].name, "LOG") == 0)
+						if (services[i].islog)
 							process_step(i, EVNT_WANT_DOWN);
 				}
 			} else {
