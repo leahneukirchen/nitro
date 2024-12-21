@@ -51,10 +51,11 @@ deadline time_now()
 
 enum global_state {
 	GLBL_UP,
+	GLBL_WAIT_FINISH,
 	GLBL_SHUTDOWN,
 	GLBL_WAIT_TERM,
 	GLBL_WAIT_KILL,
-	GLBL_FINISH,
+	GLBL_FINAL,
 } global_state;
 
 enum process_state {
@@ -750,7 +751,8 @@ process_step(int i, enum process_events ev)
 				slayall();
 				break;
 			} else if (global_state == GLBL_WAIT_KILL) {
-				global_state = GLBL_FINISH;
+				global_state = GLBL_FINAL;
+				break;
 			}
 			proc_setup(i);
 			break;
@@ -939,6 +941,8 @@ own_console()
 
 void
 do_stop_services() {
+	global_state = GLBL_SHUTDOWN;
+
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].islog)
 			continue;
@@ -953,7 +957,7 @@ void
 do_shutdown()
 {
 	if (global_state == GLBL_UP) {
-		global_state = GLBL_SHUTDOWN;
+		global_state = GLBL_WAIT_FINISH;
 
 		if (want_reboot)
 			prn(2, "- nitro: rebooting\n");
@@ -1492,7 +1496,7 @@ main(int argc, char *argv[])
 				if (errno != ECHILD)
 					prn(2, "- nitro: mysterious waitpid error: %d\n", errno);
 				if (global_state >= GLBL_WAIT_TERM && errno == ECHILD)
-					global_state = GLBL_FINISH;
+					global_state = GLBL_FINAL;
 				break;
 			}
 			has_died(r, wstatus);
@@ -1539,7 +1543,7 @@ main(int argc, char *argv[])
 			}
 		}
 
-		if (global_state == GLBL_FINISH)
+		if (global_state == GLBL_FINAL)
 			break;
 	}
 
