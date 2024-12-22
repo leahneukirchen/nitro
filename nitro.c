@@ -81,8 +81,8 @@ enum process_events {
 	// EVNT_DIED,   health check failed
 };
 
-/* max fd usage: 256 services with 256 loggers = 512 fd for logpipes + const. */
-#define MAXSV 512
+/* max fd usage: 500 services (250 loggers) = 1000 fd for logpipes + const. */
+#define MAXSV 500
 
 struct service {
 	char name[64];
