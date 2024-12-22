@@ -94,7 +94,7 @@ again:
 }
 
 int
-send_and_wait(char cmd, const char *service)
+send_and_wait(char cmd, const char *service, int fast)
 {
 	notifysock(service);
 
@@ -133,6 +133,8 @@ send_and_wait(char cmd, const char *service)
 		switch (cmd) {
 		case 'u':
 		case 'r':
+			if (fast && state == PROC_STARTING)
+				return 0;
 			if (state == PROC_UP || state == PROC_ONESHOT)
 				return 0;
 			if (state == PROC_FATAL) {
@@ -142,6 +144,8 @@ send_and_wait(char cmd, const char *service)
 			}
 			break;
 		case 'd':
+			if (fast && state == PROC_SHUTDOWN)
+				return 0;
 			if (state == PROC_DOWN || state == PROC_FATAL)
 				return 0;
 			break;
@@ -272,6 +276,9 @@ main(int argc, char *argv[])
 	    strcmp(argv[1], "1") != 0 &&
 	    strcmp(argv[1], "2") != 0 &&
 	    strcmp(argv[1], "check") != 0 &&
+	    strcmp(argv[1], "fast-start") != 0 &&
+	    strcmp(argv[1], "fast-stop") != 0 &&
+	    strcmp(argv[1], "fast-restart") != 0 &&
 	    strcmp(argv[1], "start") != 0 &&
 	    strcmp(argv[1], "r") != 0 && strcmp(argv[1], "restart") != 0 &&
 	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "scan") != 0 &&
@@ -327,11 +334,17 @@ main(int argc, char *argv[])
 
 	if (argv[1]) {
 		if (strcmp(argv[1], "start") == 0 && service)
-			return send_and_wait('u', service);
+			return send_and_wait('u', service, 0);
+		else if (strcmp(argv[1], "fast-start") == 0 && service)
+			return send_and_wait('u', service, 1);
 		else if (strcmp(argv[1], "stop") == 0 && service)
-			return send_and_wait('d', service);
+			return send_and_wait('d', service, 0);
+		else if (strcmp(argv[1], "fast-stop") == 0 && service)
+			return send_and_wait('d', service, 1);
 		else if (strcmp(argv[1], "restart") == 0 && service)
-			return send_and_wait('r', service);
+			return send_and_wait('r', service, 0);
+		else if (strcmp(argv[1], "fast-restart") == 0 && service)
+			return send_and_wait('r', service, 1);
 		else if (strcmp(argv[1], "check") == 0 && service)
 			cmd = '?';
 	}
