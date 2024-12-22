@@ -26,6 +26,16 @@
 #include <time.h>
 #include <unistd.h>
 
+#define DELAY_SPAWN_ERROR 2000   /* ms to wait when fork failed */
+#define DELAY_STARTING 2000      /* ms until s service is considered up */
+#define DELAY_RESPAWN 1000       /* ms to wait if a serviced crashed when starting */
+#define TIMEOUT_SHUTDOWN 7000    /* ms before killing a service */
+#define TIMEOUT_FINISH 7000      /* ms before killing the service finish script */
+#define TIMEOUT_SIGTERM 7000     /* max wait after SIGTERM */
+#define TIMEOUT_SIGKILL 7000     /* max wait after SIGKILL */
+#define TIMEOUT_SYS_FINISH 30000 /* ms before killing SYS/finish */
+#define TIMEOUT_SYS_FINAL 30000  /* ms before killing SYS/final */
+
 /* no stdio */
 #ifdef DEBUG
 #define assert(x)                                                           \
@@ -308,7 +318,7 @@ proc_launch(int i)
 		/* pipe failed, delay */
 		prn(2, "- nitro: can't create status pipe: errno=%d\n", errno);
 		services[i].state = PROC_DELAY;
-		services[i].timeout = 2000;
+		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
 		return;
 	}
@@ -348,7 +358,7 @@ proc_launch(int i)
 		close(alivepipefd[0]);
 		close(alivepipefd[1]);
 		services[i].state = PROC_DELAY;
-		services[i].timeout = 2000;
+		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
 		return;
 	}
@@ -377,7 +387,7 @@ proc_launch(int i)
 	services[i].pid = child;
 	services[i].startstop = time_now();
 	services[i].state = PROC_STARTING;
-	services[i].timeout = 2000;
+	services[i].timeout = DELAY_STARTING;
 	services[i].deadline = 0;
 }
 
@@ -419,7 +429,7 @@ proc_setup(int i)
 	} else if (child < 0) {
 		/* fork failed, delay */
 		services[i].state = PROC_DELAY;
-		services[i].timeout = 2000;
+		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
 		return;
 	}
@@ -496,7 +506,7 @@ proc_finish(int i)
 	}
 
 	services[i].finishpid = child;
-	services[i].timeout = 7000;
+	services[i].timeout = TIMEOUT_FINISH;
 	services[i].deadline = 0;
 }
 
@@ -519,7 +529,7 @@ proc_shutdown(int i)
 	if (services[i].state != PROC_SHUTDOWN &&
 	    services[i].state != PROC_RESTART) {
 		services[i].state = PROC_SHUTDOWN;
-		services[i].timeout = 7000;
+		services[i].timeout = TIMEOUT_SHUTDOWN;
 		services[i].deadline = 0;
 	}
 }
@@ -735,7 +745,7 @@ process_step(int i, enum process_events ev)
 			if (global_state != GLBL_UP)
 				break;
 			services[i].state = PROC_DELAY;
-			services[i].timeout = 1000;
+			services[i].timeout = DELAY_RESPAWN;
 			services[i].deadline = 0;
 			break;
 
@@ -1022,7 +1032,7 @@ do_shutdown()
 			if (services[b].state == PROC_DOWN)
 				do_stop_services();
 			else
-				services[b].timeout = 30000;
+				services[b].timeout = TIMEOUT_SYS_FINISH;
 		} else {
 			do_stop_services();
 		}
@@ -1292,7 +1302,7 @@ has_died(pid_t pid, int status)
 				notify(i);
 			} else {
 				services[i].state = PROC_DELAY;
-				services[i].timeout = 1000;
+				services[i].timeout = DELAY_RESPAWN;
 				services[i].deadline = 0;
 			}
 
@@ -1375,7 +1385,7 @@ killall()
 
 	int i = add_service(".SHUTDOWN");
 	services[i].state = PROC_DELAY;
-	services[i].timeout = 7000;
+	services[i].timeout = TIMEOUT_SIGTERM;
 	services[i].deadline = 0;
 }
 
@@ -1388,7 +1398,7 @@ slayall()
 
 	int i = add_service(".SHUTDOWN");
 	services[i].state = PROC_DELAY;
-	services[i].timeout = 3000;
+	services[i].timeout = TIMEOUT_SIGKILL;
 	services[i].deadline = 0;
 }
 
@@ -1609,7 +1619,7 @@ main(int argc, char *argv[])
 				char ch;
 				while (read(selfpipe[0], &ch, 1) == 1)
 					;
-				poll(fds, 1, 30000);
+				poll(fds, 1, TIMEOUT_SYS_FINAL);
 				if (waitpid(child, &wstatus, WNOHANG) == child) {
 					prn(2, "- nitro: SYS/final finished with status %d\n", WEXITSTATUS(wstatus));
 				} else {
