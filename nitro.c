@@ -1600,7 +1600,9 @@ main(int argc, char *argv[])
 			if (child < 0) {
 				prn(2, "- nitro: SYS/final failed to exec: errno=%d\n", errno);
 			} else if (child == 0) {
-				execle("SYS/final", "final", (char *)0, child_environ);
+				execle("SYS/final", "final",
+				    want_reboot ? "reboot" : "shutdown",
+				    (char *)0, child_environ);
 				_exit(127);
 			} else {
 				int wstatus = 0;
