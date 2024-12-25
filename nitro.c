@@ -1450,6 +1450,7 @@ main(int argc, char *argv[])
 	if (nullfd <= 2) {      /* fd 0,1,2 aren't open */
 		dup2(nullfd, 3);
 		nullfd = 3;
+		fcntl(nullfd, F_SETFD, FD_CLOEXEC);
 		dup2(nullfd, 0);
 		dup2(nullfd, 1);
 		dup2(nullfd, 2);
