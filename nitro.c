@@ -1350,13 +1350,14 @@ has_died(pid_t pid, int status)
 	dprn("reaping unknown child %d\n", pid);
 }
 
-/* only detects toplevel mount points */
+#ifdef __linux__
 static int
 mounted(const char *dir)
 {
 	struct stat rootst;
 	struct stat dirst;
 
+	/* only detects toplevel mount points */
 	stat("/", &rootst);
 	if (stat(dir, &dirst) < 0)
 		return 1;  /* can't mount if mountpoint doesn't exist */
@@ -1367,13 +1368,12 @@ mounted(const char *dir)
 void
 init_mount()
 {
-#ifdef __linux__
 	if (access("/dev/null", F_OK) == 0 && !mounted("/dev"))
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
 	if (!mounted("/run"))
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
-#endif
 }
+#endif
 
 void
 killall()
@@ -1415,12 +1415,12 @@ main(int argc, char *argv[])
 	pid1 = real_pid1 = (getpid() == 1);
 	if (pid1) {
 		umask(0022);
-		init_mount();
-		own_console();
 #ifdef __linux__
+		init_mount();
 		if (reboot(RB_DISABLE_CAD) < 0)
 			real_pid1 = 0;  /* we are in a container */
 #endif
+		own_console();
 	}
 
 	// can't use putenv, which pulls in realloc
