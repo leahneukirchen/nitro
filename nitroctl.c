@@ -319,7 +319,11 @@ main(int argc, char *argv[])
 	}
 #endif
 
+#ifdef __linux__
 	static const char default_sock[] = "/run/nitro/nitro.sock";
+#else
+	static const char default_sock[] = "/var/run/nitro/nitro.sock";
+#endif
 	sockpath = getenv("NITRO_SOCK");
 	if (!sockpath || !*sockpath)
 		sockpath = default_sock;
