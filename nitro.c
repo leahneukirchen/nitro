@@ -1041,7 +1041,11 @@ do_shutdown()
 
 void
 open_control_socket() {
+#ifdef __linux__
 	static const char default_sock[] = "/run/nitro/nitro.sock";
+#else
+	static const char default_sock[] = "/var/run/nitro/nitro.sock";
+#endif
 	const char *path = getenv("NITRO_SOCK");
 	if (!path || !*path)
 		path = default_sock;
