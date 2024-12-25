@@ -1434,6 +1434,23 @@ main(int argc, char *argv[])
 		child_environ = environ;
 	}
 
+	nullfd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+	if (nullfd < 0) {
+		// use a closed pipe instead
+		int fd[2];
+		if (pipe(fd) < 0)
+			abort();
+		nullfd = fd[0];
+		close(fd[1]);
+	}
+	if (nullfd <= 2) {      /* fd 0,1,2 aren't open */
+		dup2(nullfd, 3);
+		nullfd = 3;
+		dup2(nullfd, 0);
+		dup2(nullfd, 1);
+		dup2(nullfd, 2);
+	}
+
 	const char *dir = "/etc/nitro";
 	if (argc == 2)
 		dir = argv[1];
@@ -1444,16 +1461,6 @@ main(int argc, char *argv[])
 	cwd = opendir(".");
 	if (!cwd)
 		abort();
-
-	nullfd = open("/dev/null", O_RDONLY | O_CLOEXEC);
-	if (nullfd < 0) {
-		// use a closed pipe instead
-		int fd[2];
-		if (pipe(fd) < 0)
-			abort();
-		nullfd = fd[0];
-		close(fd[1]);
-	}
 
 	pipe(selfpipe);
 	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
