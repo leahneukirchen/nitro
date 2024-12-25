@@ -270,7 +270,7 @@ stat_slash_to_at(const char *dir, const char *name, struct stat *st)
 	char *instance = strchr(dir, '@');
 	if (instance)
 		*instance = 0;
-	sprn(buf, buf + sizeof buf, "%s%s/%s", dir, "@"+!instance, name);
+	sprn(buf, buf + sizeof buf, "%s%s/%s", dir, (instance ? "@" : ""), name);
 	if (instance)
 		*instance = '@';
 	return stat(buf, st);
