@@ -88,7 +88,6 @@ enum process_events {
 	EVNT_SETUP,             /* setup script exited */
 	EVNT_EXITED,
 	EVNT_FINISHED,          /* finish script exited */
-	// EVNT_DIED,   health check failed
 };
 
 /* max fd usage: 500 services (250 loggers) = 1000 fd for logpipes + const. */
@@ -1325,8 +1324,6 @@ has_died(pid_t pid, int status)
 
 			return;
 		}
-
-		// XXX handle logger?
 	}
 
 	dprn("reaping unknown child %d\n", pid);
