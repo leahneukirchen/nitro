@@ -1669,6 +1669,12 @@ main(int argc, char *argv[])
 	}
 #endif
 
+	if (want_reboot) {
+		prn(2, "- nitro: re-execing\n");
+		execvp(argv[0], argv);
+		fatal("could not re-exec '%s': errno=%d\n", argv[0], errno);
+	}
+
 	prn(2, "- nitro: finished\n");
 
 	return 0;
