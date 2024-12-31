@@ -156,7 +156,7 @@ send_and_wait(char cmd, const char *service, int fast)
 				return 0;
 			if (state == PROC_FATAL) {
 				fprintf(stderr,
-				    "nitroctl: failed to %sstart '%s'\n", service, cmd == 'u' ? "" : "re");
+				    "nitroctl: failed to %sstart '%s'\n", cmd == 'u' ? "" : "re", service);
 				return 1;
 			}
 			break;
