@@ -1445,7 +1445,7 @@ main(int argc, char *argv[])
 		// use a closed pipe instead
 		int fd[2];
 		if (pipe(fd) < 0)
-			abort();
+			fatal("pipe: errno=%d\n", errno);
 		nullfd = fd[0];
 		close(fd[1]);
 	}
@@ -1460,10 +1460,10 @@ main(int argc, char *argv[])
 			// use a process that reads from a pipe instead
 			int fd[2];
 			if (pipe(fd) < 0)
-				abort();
+				fatal("voidfd pipe: errno=%d\n", errno);
 			pid_t child = fork();
 			if (child < 0) {
-				abort();
+				fatal("voidfd fork: errno=%d\n", errno);
 			} else if (child == 0) {
 				close(0);
 				close(nullfd);
@@ -1493,7 +1493,7 @@ main(int argc, char *argv[])
 
 	cwd = opendir(".");
 	if (!cwd)
-		abort();
+		fatal("opendir '%s': errno=%d\n", dir, errno);
 
 	pipe(selfpipe);
 	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
