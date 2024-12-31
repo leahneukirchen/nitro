@@ -29,6 +29,7 @@ Nitro is configured by a directory of scripts, defaulting to
 - Supports reliable restarting of services.
 - Reliable logging mechanisms per service or as default.
 - Works independently of properly set system clock.
+- Can be run on FreeBSD from /etc/ttys (sets up file descriptors 0, 1, 2).
 - Tiny static binary when using musl libc.
 
 ## Services
@@ -65,6 +66,7 @@ You may find runit's `chpst` useful when writing `run` scripts.
   in a certain order.
   `SYS/finish` is run before all remaining services are killed and the
   system is brought down.
+  After all processes are terminated, `SYS/final` is run.
 
 ## Modes of operation
 
@@ -79,13 +81,14 @@ When a service exits, it's being restarted, potentially waiting for
 two seconds if the last restart happened too quickly.
 
 By using `nitroctl Reboot` or `nitroctl Shutdown`, the system can be
-brought down.  If it exists, `SYS/finish` will be run.  After
-this, nitro will send a SIGTERM signal to all running services and
-waits for up to 7 seconds for the service to exit.  Otherwise, a
-SIGKILL is sent.
+brought down.  If it exists, `SYS/finish` will be run.  After this,
+nitro will send a SIGTERM signal to all running services and waits for
+up to 7 seconds for the service to exit.  Otherwise, a SIGKILL is
+sent.  After all processes are terminated, `SYS/final` is run.
 
 Finally, nitro reboots or shuts down the system; or just exits
 when it was used as a container init or unprivileged supervisor.
+(When a reboot was requested, it re-execs itself.)
 
 ## Controlling nitro with nitroctl
 
