@@ -820,6 +820,8 @@ on_signal(int sig)
 	int old_errno = errno;
 
 	switch (sig) {
+	case SIGPIPE:           /* ignore, but don't use SIG_IGN */
+		return;
 	case SIGINT:
 		if (real_pid1)
 			want_reboot = 1;    /* Linux Ctrl-Alt-Delete */
@@ -1452,8 +1454,34 @@ main(int argc, char *argv[])
 		nullfd = 3;
 		fcntl(nullfd, F_SETFD, FD_CLOEXEC);
 		dup2(nullfd, 0);
-		dup2(nullfd, 1);
-		dup2(nullfd, 2);
+
+		int voidfd = open("/dev/null", O_WRONLY); /* for screaming into */
+		if (voidfd < 0) {
+			// use a process that reads from a pipe instead
+			int fd[2];
+			if (pipe(fd) < 0)
+				abort();
+			pid_t child = fork();
+			if (child < 0) {
+				abort();
+			} else if (child == 0) {
+				close(0);
+				close(nullfd);
+				close(fd[1]);
+
+				char buf[1024];
+				while (read(fd[0], buf, sizeof buf) != 0)
+					;
+
+				_exit(0);
+			}
+			voidfd = fd[1];
+			close(fd[0]);
+		}
+		dup2(voidfd, 1);
+		dup2(voidfd, 2);
+		if (voidfd > 2)
+			close(voidfd);
 	}
 
 	const char *dir = "/etc/nitro";
@@ -1487,6 +1515,7 @@ main(int argc, char *argv[])
 		.sa_mask = allset,
 		.sa_flags = SA_NOCLDSTOP | SA_RESTART,
 	};
+	sigaction(SIGPIPE, &sa, 0);
 	sigaction(SIGCHLD, &sa, 0);
 	sigaction(SIGHUP, &sa, 0);
 	sigaction(SIGINT, &sa, 0);
