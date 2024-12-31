@@ -1642,15 +1642,14 @@ main(int argc, char *argv[])
 			}
 		}
 
-		sync();
 		if (mount("/", "/", "", MS_REMOUNT | MS_RDONLY, "") < 0)
 			prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
 		else
 			prn(2, "- nitro: remounted / read-only\n");
 
-		prn(2, "- nitro: system %s\n",
-		    want_reboot ? "reboot" : "halt");
+		sync();
 
+		prn(2, "- nitro: system %s\n", want_reboot ? "reboot" : "halt");
 		sleep(1);
 
 		if (want_reboot) {
