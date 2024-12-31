@@ -121,6 +121,7 @@ int globallog[2];
 DIR *cwd;
 DIR *notifydir;
 char notifypath[256];
+const char *control_socket_path;
 
 int pid1;
 int real_pid1;
@@ -1048,15 +1049,15 @@ open_control_socket() {
 #else
 	static const char default_sock[] = "/var/run/nitro/nitro.sock";
 #endif
-	const char *path = getenv("NITRO_SOCK");
-	if (!path || !*path)
-		path = default_sock;
+	control_socket_path = getenv("NITRO_SOCK");
+	if (!control_socket_path || !*control_socket_path)
+		control_socket_path = default_sock;
 
-	char *last_slash = strrchr(path, '/');
+	char *last_slash = strrchr(control_socket_path, '/');
 	if (last_slash) {
 		char dir[PATH_MAX];
-		memcpy(dir, path, last_slash - path);
-		dir[last_slash - path] = 0;
+		memcpy(dir, control_socket_path, last_slash - control_socket_path);
+		dir[last_slash - control_socket_path] = 0;
 		mkdir(dir, 0700);
 		// ignore errors
 
@@ -1072,7 +1073,7 @@ open_control_socket() {
 
 	struct sockaddr_un addr = { 0 };
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, path, sizeof addr.sun_path - 1);
+	strncpy(addr.sun_path, control_socket_path, sizeof addr.sun_path - 1);
 
 	controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (controlsock < 0)
@@ -1617,6 +1618,9 @@ main(int argc, char *argv[])
 		if (global_state == GLBL_FINAL)
 			break;
 	}
+
+	close(controlsock);
+	unlink(control_socket_path);
 
 #ifdef __linux__
 	if (real_pid1) {
