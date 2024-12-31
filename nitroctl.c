@@ -41,6 +41,23 @@ enum process_state {
 	PROC_DELAY,
 };
 
+static const char *
+proc_state_str(enum process_state state)
+{
+       switch (state) {
+       case PROC_DOWN: return "DOWN";
+       case PROC_SETUP: return "SETUP";
+       case PROC_STARTING: return "STARTING";
+       case PROC_UP: return "UP";
+       case PROC_ONESHOT: return "ONESHOT";
+       case PROC_SHUTDOWN: return "SHUTDOWN";
+       case PROC_RESTART: return "RESTART";
+       case PROC_FATAL: return "FATAL";
+       case PROC_DELAY: return "DELAY";
+       default: return "???";
+       }
+}
+
 void
 noop()
 {
@@ -368,7 +385,20 @@ main(int argc, char *argv[])
 	}
 	if (rd > 0)
 		status = 0;
-	write(1, buf, rd);
+
+	char *s = buf;
+	char name[64];
+	long pid, state, wstatus, uptime;
+	int len;
+	while (sscanf(s,  "%64s %ld %ld %ld %ld%n",
+	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
+		s += len;
+
+		printf("%s %s", proc_state_str(state), name);
+		if (pid)
+			printf(" (pid %ld)", pid);
+		printf(" (wstatus %ld) %lds\n", wstatus, uptime);
+	}
 
 	return status;
 }

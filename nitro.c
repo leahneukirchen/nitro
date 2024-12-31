@@ -1144,24 +1144,6 @@ charsig(char c)
 	}
 }
 
-const char *
-proc_state_str(enum process_state state)
-{
-	switch (state) {
-	case PROC_DOWN: return "DOWN";
-	case PROC_STARTING: return "STARTING";
-	case PROC_UP: return "UP";
-	case PROC_SHUTDOWN: return "SHUTDOWN";
-	case PROC_RESTART: return "RESTART";
-	case PROC_FATAL: return "FATAL";
-	case PROC_DELAY: return "DELAY";
-	case PROC_SETUP: return "SETUP";
-	case PROC_ONESHOT: return "ONESHOT";
-	}
-
-	assert(!"unreachable");
-};
-
 void
 handle_control_sock() {
 	char buf[256];
@@ -1197,19 +1179,12 @@ handle_control_sock() {
 		deadline now = time_now();
 
 		for (int i = 0; i < max_service; i++) {
-			if (services[i].pid)
-				reply += sprn(reply, replyend, "%s %s (pid %d) (wstatus %d) %ds\n",
-				    proc_state_str(services[i].state),
-				    services[i].name,
-				    services[i].pid,
-				    services[i].wstatus,
-				    (now - services[i].startstop) / 1000);
-			else
-				reply += sprn(reply, replyend, "%s %s (wstatus %d) %ds\n",
-				    proc_state_str(services[i].state),
-				    services[i].name,
-				    services[i].wstatus,
-				    (now - services[i].startstop) / 1000);
+			reply += sprn(reply, replyend, "%s %d %d %d %d\n",
+			    services[i].name,
+			    services[i].state,
+			    services[i].pid,
+			    services[i].wstatus,
+			    (now - services[i].startstop) / 1000);
 		}
 
 		sendto(controlsock, replybuf, reply - replybuf,
