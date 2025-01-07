@@ -1371,7 +1371,20 @@ void
 slayall()
 {
 	prn(2, "- nitro: sending SIGKILL to all processes\n");
+
+#ifdef __linux__
+	/* On Linux: We have to use exec here, since kill(-1, SIGKILL) will
+	   block across forks when there's a process stuck in state D.  */
+	pid_t child = fork();
+	if (child == 0) {
+		execle("kill", "kill", "-9", "-1", (char *)0, child_environ);
+		kill(-1, SIGKILL);  /* fallback */
+		_exit(111);
+	}
+#else
 	kill(-1, SIGKILL);
+#endif
+
 	global_state = GLBL_WAIT_KILL;
 
 	int i = add_service(".SHUTDOWN");
