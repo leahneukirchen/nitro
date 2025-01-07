@@ -60,7 +60,7 @@ deadline time_now()
 }
 
 enum global_state {
-	GLBL_UP,
+	GLBL_UP = 0,
 	GLBL_WAIT_FINISH,
 	GLBL_SHUTDOWN,
 	GLBL_WAIT_TERM,
@@ -1542,7 +1542,10 @@ main(int argc, char *argv[])
 			}
 		}
 
-		dprn("poll(timeout=%d)\n", timeout);
+		if (global_state == GLBL_FINAL)
+			break;
+
+		dprn("poll(timeout=%d) %d\n", timeout, global_state);
 
 		int r = 0;
 		do {
@@ -1610,9 +1613,6 @@ main(int argc, char *argv[])
 				killall();
 			}
 		}
-
-		if (global_state == GLBL_FINAL)
-			break;
 	}
 
 	close(controlsock);
