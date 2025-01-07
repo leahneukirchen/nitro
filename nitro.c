@@ -784,12 +784,11 @@ process_step(int i, enum process_events ev)
 		case PROC_DELAY:
 			if (global_state == GLBL_WAIT_TERM) {
 				slayall();
-				break;
 			} else if (global_state == GLBL_WAIT_KILL) {
 				global_state = GLBL_FINAL;
-				break;
+			} else {
+				proc_setup(i);
 			}
-			proc_setup(i);
 			break;
 
 		case PROC_STARTING:
