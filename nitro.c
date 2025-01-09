@@ -1373,13 +1373,13 @@ slayall()
 	prn(2, "- nitro: sending SIGKILL to all processes\n");
 
 #ifdef __linux__
-	/* On Linux: We have to use exec here, since kill(-1, SIGKILL) will
-	   block across forks when there's a process stuck in state D.  */
+	/* On Linux, kill(-1, SIGKILL) can block indefinitely and hang the
+	   current process when a process is stuck in state D, so fork and only
+	   block the child.  */
 	pid_t child = fork();
 	if (child == 0) {
-		execle("kill", "kill", "-9", "-1", (char *)0, child_environ);
-		kill(-1, SIGKILL);  /* fallback */
-		_exit(111);
+		kill(-1, SIGKILL);
+		_exit(0);
 	}
 #else
 	kill(-1, SIGKILL);
