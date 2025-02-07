@@ -992,7 +992,7 @@ rescan(int first)
 	}
 
 	for (i = 0; i < max_service; i++)
-		if (!services[i].seen)
+		if (!services[i].seen && !strchr(services[i].name, '@'))
 			process_step(i, EVNT_WANT_DOWN);
 }
 
