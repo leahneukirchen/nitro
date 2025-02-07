@@ -929,6 +929,7 @@ refresh_log:
 		int j = add_service(target_name);
 		int waslog = services[j].islog;
 		services[j].islog = 1;
+		services[j].seen = 1;
 		if (services[j].logpipe[0] == -1) {
 			if (pipe(services[j].logpipe) < 0) {
 				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
