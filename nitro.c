@@ -837,7 +837,10 @@ on_signal(int sig)
 		break;
 	}
 
-	write(selfpipe[1], "", 1);
+	ssize_t r;
+	do {
+		r = write(selfpipe[1], "", 1);
+	} while (r == -1 && errno == EINTR);
 
 	errno = old_errno;
 }
