@@ -129,6 +129,28 @@ volatile sig_atomic_t want_rescan;
 volatile sig_atomic_t want_shutdown;
 volatile sig_atomic_t want_reboot;
 
+static ssize_t
+safe_write(int fd, const char *buf, size_t len)
+{
+	if (len == 0)
+		return 0;
+
+	size_t off = 0;
+	while (off < len) {
+		ssize_t r = write(fd, buf + off, len - off);
+		if (r == -1 && errno == EINTR)
+			continue;
+		if (r == -1)
+			return -1;
+		if (r == 0) {  /* can't happen */
+			errno = EIO;
+			return -1;
+		}
+		off += r;
+	}
+	return off;
+}
+
 static char *
 stecpe(char *dst, const char *end, const char *src, const char *srcend)
 {
@@ -245,7 +267,7 @@ prn(int fd, const char *fmt, ...)
 
 	va_end(ap);
 
-	return write(fd, buf, out - buf);  // XXX safe write
+	return safe_write(fd, buf, out - buf);
 }
 
 #define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); exit(111); } while (0)
