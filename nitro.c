@@ -1574,7 +1574,7 @@ main(int argc, char *argv[])
 
 		while (1) {
 			int wstatus = 0;
-			int r = waitpid(-1, &wstatus, WNOHANG);
+			pid_t r = waitpid(-1, &wstatus, WNOHANG);
 			if (r == 0)
 				break;
 			if (r < 0) {
