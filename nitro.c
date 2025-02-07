@@ -132,9 +132,6 @@ volatile sig_atomic_t want_reboot;
 static ssize_t
 safe_write(int fd, const char *buf, size_t len)
 {
-	if (len == 0)
-		return 0;
-
 	size_t off = 0;
 	while (off < len) {
 		ssize_t r = write(fd, buf + off, len - off);
