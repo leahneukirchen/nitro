@@ -1508,13 +1508,15 @@ main(int argc, char *argv[])
 	if (!cwd)
 		fatal("opendir '%s': errno=%d\n", dir, errno);
 
-	pipe(selfpipe);
+	if (pipe(selfpipe) < 0)
+		fatal("selfpipe pipe: errno=%d\n", errno);
 	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(selfpipe[1], F_SETFL, O_NONBLOCK);
 	fcntl(selfpipe[0], F_SETFD, FD_CLOEXEC);
 	fcntl(selfpipe[1], F_SETFD, FD_CLOEXEC);
 
-	pipe(globallog);
+	if (pipe(globallog) < 0)
+		fatal("globallog pipe: errno=%d\n", errno);
 	/* keep globallog[0] blocking */
 	fcntl(globallog[1], F_SETFL, O_NONBLOCK);
 	fcntl(globallog[0], F_SETFD, FD_CLOEXEC);
