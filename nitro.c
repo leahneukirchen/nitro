@@ -988,7 +988,9 @@ rescan(int first)
 
 		services[i].seen = 1;
 
-		if (first && stat_slash(name, "down", &st) == 0) {
+		if (first && stat_slash(name, "down", &st) == 0 &&
+		    !(services[i].state == PROC_UP ||
+		    services[i].state == PROC_STARTING)) {
 			services[i].state = PROC_DOWN;
 			services[i].timeout = 0;
 		}
