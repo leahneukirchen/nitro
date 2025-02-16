@@ -884,6 +884,13 @@ add_service(const char *name)
 		if (strcmp(services[i].name, name) == 0)
 			goto refresh_log;
 
+	struct stat st;
+	if (stat_slash_to_at(name, "run", &st) != 0 &&
+	    stat_slash_to_at(name, "setup", &st) != 0) {
+		prn(2, "- nitro: no such service: %s\n", name);
+		return -1;
+	}
+
 	/* else set up a new service */
 
 	if (strlen(name) >= sizeof (services[i].name)) {
@@ -929,6 +936,12 @@ refresh_log:
 			target_name = log_target;
 
 		int j = add_service(target_name);
+		if (j < 0) {
+			services[i].logpipe[0] = -1;
+			services[i].logpipe[1] = -1;
+			return i;
+		}
+
 		int waslog = services[j].islog;
 		services[j].islog = 1;
 		services[j].seen = 1;
