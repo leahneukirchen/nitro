@@ -1061,7 +1061,9 @@ do_shutdown()
 			int b = add_service("SYS");
 			services[b].state = PROC_ONESHOT;
 			process_step(b, EVNT_WANT_DOWN);
-			if (services[b].state == PROC_DOWN)
+			/* got zapped or is down */
+			if (strcmp(services[b].name, "SYS") != 0 ||
+			    services[b].state == PROC_DOWN)
 				do_stop_services();
 			else
 				services[b].timeout = TIMEOUT_SYS_FINISH;
