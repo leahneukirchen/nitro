@@ -1052,7 +1052,8 @@ do_shutdown()
 		if (pid1)
 			own_console();
 #ifdef __linux__
-		reboot(RB_ENABLE_CAD);
+		if (real_pid1)
+			reboot(RB_ENABLE_CAD);
 #endif
 
 		struct stat st;
