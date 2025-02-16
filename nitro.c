@@ -1057,7 +1057,7 @@ do_shutdown()
 #endif
 
 		struct stat st;
-		if (stat("SYS", &st) == 0) {
+		if (stat("SYS/finish", &st) == 0) {
 			int b = add_service("SYS");
 			services[b].state = PROC_ONESHOT;
 			process_step(b, EVNT_WANT_DOWN);
