@@ -1320,16 +1320,18 @@ has_died(pid_t pid, int status)
 
 			services[i].setuppid = 0;
 
-			if (WEXITSTATUS(status) == 0) {
-				process_step(i, EVNT_SETUP);
-			} else if (WEXITSTATUS(status) == 111) {
-				services[i].state = PROC_FATAL;
-				services[i].wstatus = -1;
-				notify(i);
-			} else {
-				services[i].state = PROC_DELAY;
-				services[i].timeout = DELAY_RESPAWN;
-				services[i].deadline = 0;
+			if (services[i].state == PROC_SETUP) {
+				if (WEXITSTATUS(status) == 0) {
+					process_step(i, EVNT_SETUP);
+				} else if (WEXITSTATUS(status) == 111) {
+					services[i].state = PROC_FATAL;
+					services[i].wstatus = -1;
+					notify(i);
+				} else {
+					services[i].state = PROC_DELAY;
+					services[i].timeout = DELAY_RESPAWN;
+					services[i].deadline = 0;
+				}
 			}
 
 			if (strcmp(services[i].name, "SYS") == 0 &&
