@@ -1630,7 +1630,7 @@ main(int argc, char *argv[])
 			if (r < 0) {
 				if (errno != ECHILD)
 					prn(2, "- nitro: mysterious waitpid error: %d\n", errno);
-				if (global_state >= GLBL_WAIT_TERM && errno == ECHILD)
+				if (global_state >= GLBL_SHUTDOWN && errno == ECHILD)
 					global_state = GLBL_FINAL;
 				break;
 			}
