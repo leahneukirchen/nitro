@@ -55,7 +55,17 @@ typedef int64_t deadline;               /* milliseconds since boot */
 deadline time_now()
 {
 	struct timespec now;
+
+	/* prefer a clock that does *not* count time during suspend, as we
+	   are measuring delays */
+#if defined(CLOCK_UPTIME)
+	clock_gettime(CLOCK_UPTIME, &now);
+#elif defined (CLOCK_UPTIME_RAW)
+	clock_gettime(CLOCK_UPTIME_RAW, &now);
+#else
 	clock_gettime(CLOCK_MONOTONIC, &now);
+#endif
+
 	return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
 }
 
