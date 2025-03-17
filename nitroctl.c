@@ -298,7 +298,7 @@ main(int argc, char *argv[])
 	    strcmp(argv[1], "fast-restart") != 0 &&
 	    strcmp(argv[1], "start") != 0 &&
 	    strcmp(argv[1], "r") != 0 && strcmp(argv[1], "restart") != 0 &&
-	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "scan") != 0 &&
+	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "scan") != 0 && strcmp(argv[1], "rescan") != 0 &&
 	    strcmp(argv[1], "stop") != 0 &&
 	    strcmp(argv[1], "Reboot") != 0 &&
 	    strcmp(argv[1], "Shutdown") != 0)) {
@@ -368,6 +368,8 @@ main(int argc, char *argv[])
 			return send_and_wait('r', service, 1);
 		else if (strcmp(argv[1], "check") == 0 && service)
 			cmd = '?';
+		else if (strcmp(argv[1], "rescan") == 0)
+			cmd = 's';
 	}
 
 	notifysock("");
