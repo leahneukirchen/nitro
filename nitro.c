@@ -1354,6 +1354,15 @@ has_died(pid_t pid, int status)
 
 				// bring up rest of the services
 				rescan(1);
+				return;
+			}
+
+			if (services[i].state == PROC_SHUTDOWN ||
+			    services[i].state == PROC_RESTART) {
+				// When down or restart is requested during
+				// setup, skip straight to finished as the main
+				// process didn't run yet.
+				process_step(i, EVNT_FINISHED);
 			}
 
 			return;
