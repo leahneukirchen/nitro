@@ -392,7 +392,7 @@ main(int argc, char *argv[])
 	char name[64];
 	long pid, state, wstatus, uptime;
 	int len;
-	while (sscanf(s,  "%64s %ld %ld %ld %ld%n",
+	while (sscanf(s,  "%63s %ld %ld %ld %ld%n",
 	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
 		s += len;
 
