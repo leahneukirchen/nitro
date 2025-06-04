@@ -931,7 +931,7 @@ refresh_log:
 	sprn(log_link, log_link + sizeof log_link, "%s/log", name);
 
 	ssize_t r = readlink(log_link, log_target, sizeof log_target - 1);
-	if (r < 0 || (size_t)r >= sizeof log_target - 1) {
+	if (r < 0) {
 		if (errno == EINVAL)
 			prn(2, "warning: ignoring log, it is not a symlink: %s\n", name);
 		services[i].logpipe[0] = -1;
