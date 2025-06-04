@@ -1413,7 +1413,7 @@ mounted(const char *dir)
 void
 init_mount()
 {
-	if (access("/dev/null", F_OK) == 0 && !mounted("/dev"))
+	if (access("/dev/null", F_OK) < 0 && !mounted("/dev"))
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
 	if (!mounted("/run"))
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
