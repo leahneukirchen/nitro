@@ -1483,7 +1483,7 @@ main(int argc, char *argv[])
 
 	// can't use putenv, which pulls in realloc
 	if (!getenv("PATH")) {
-		envbuf[0] = (char *)"PATH=" _PATH_DEFPATH;
+		envbuf[0] = (char *)"PATH=" _PATH_STDPATH;
 		for (i = 1; i < ENVSIZE && environ[i - 1]; i++)
 			envbuf[i] = environ[i - 1];
 		envbuf[i] = 0;
