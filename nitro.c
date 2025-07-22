@@ -636,14 +636,13 @@ close_fd(int fd)
 
 void
 proc_zap(int i) {
-	/* close the log pipes and remove all references to it */
-	if (IS_LOG(i)) {
+	if (!services[i].seen) {
+		/* close the log pipes and remove all references to it */
 		close_fd(services[i].log_in[0]);
 		close_fd(services[i].log_in[1]);
-	}
 
-	if (!services[i].seen) {
 		dprn("can garbage-collect %s\n", services[i].name);
+
 		if (max_service > 0) {
 			services[i] = services[--max_service];
 		} else {
