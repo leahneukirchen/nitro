@@ -125,6 +125,7 @@ struct service {
 } services[MAXSV];
 
 #define IS_LOG(i) (services[i].log_in[0] != -1)
+#define PENDING_FD (-666)
 
 int max_service;
 int controlsock;
@@ -936,10 +937,10 @@ add_service(const char *name)
 	services[i].log_in[1] = -1;
 
 	if (strcmp(services[i].name, "LOG") == 0)
-		services[i].log_in[0] = -666;
+		services[i].log_in[0] = PENDING_FD;
 
 refresh_log:
-	if (IS_LOG(i))
+	if (IS_LOG(i) || services[i].log_out[1] == PENDING_FD)
 		return i;
 
 	char log_target[PATH_MAX];
@@ -961,6 +962,7 @@ refresh_log:
 		else
 			target_name = log_target;
 
+		services[i].log_out[1] = PENDING_FD;
 		int j = add_service(target_name);
 		if (j < 0) {
 			services[i].log_out[0] = -1;
