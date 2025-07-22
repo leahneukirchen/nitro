@@ -100,7 +100,7 @@ enum process_events {
 	EVNT_FINISHED,          /* finish script exited */
 };
 
-/* max fd usage: 500 services (250 loggers) = 1000 fd for logpipes + const. */
+/* max fd usage: 500 services (250 loggers) = 1000 fd for log pipes + const. */
 #ifndef MAXSV
 #define MAXSV 500
 #endif
@@ -114,15 +114,17 @@ struct service {
 	pid_t setuppid;
 	pid_t finishpid;
 	int wstatus;
-	int logpipe[2];
+	int log_out[2];         /* process writes to log_out[1] */
+	int log_in[2];          /* process reads from log_in[0] */
 #ifdef DEBUG
 	enum process_state state;
 #else
 	char /* enum process_state */ state;
 #endif
 	char seen;
-	char islog;
 } services[MAXSV];
+
+#define IS_LOG(i) (services[i].log_in[0] != -1)
 
 int max_service;
 int controlsock;
@@ -365,12 +367,14 @@ proc_launch(int i)
 		if (strcmp(services[i].name, "LOG") == 0) {
 			dup2(globallog[0], 0);
 			dup2(1, 2);
-		} else if (services[i].islog) {
-			dup2(services[i].logpipe[0], 0);
 		} else {
-			dup2(nullfd, 0);
-			if (services[i].logpipe[1] != -1)
-				dup2(services[i].logpipe[1], 1);
+			if (IS_LOG(i))
+				dup2(services[i].log_in[0], 0);
+			else
+				dup2(nullfd, 0);
+
+			if (services[i].log_out[1] != -1)
+				dup2(services[i].log_out[1], 1);
 			else if (globallog[1] > 0)
 				dup2(globallog[1], 1);
 			// else keep fd 1 to /dev/console
@@ -446,8 +450,8 @@ proc_setup(int i)
 			dup2(nullfd, 0);
 		}
 
-		if (services[i].logpipe[1] != -1)
-			dup2(services[i].logpipe[1], 1);
+		if (services[i].log_out[1] != -1)
+			dup2(services[i].log_out[1], 1);
 		else if (globallog[1] > 0)
 			dup2(globallog[1], 1);
 		// else keep fd 1 to /dev/console
@@ -510,8 +514,8 @@ proc_finish(int i)
 		char *instance = chdir_at(services[i].name);
 
 		dup2(nullfd, 0);
-		if (services[i].logpipe[1] != -1)
-			dup2(services[i].logpipe[1], 1);
+		if (services[i].log_out[1] != -1)
+			dup2(services[i].log_out[1], 1);
 		else if (globallog[1] > 0)
 			dup2(globallog[1], 1);
 		// else keep fd 1 to /dev/console
@@ -594,38 +598,48 @@ proc_cleanup(int i)
 	services[i].startstop = time_now();
 
 	if (global_state != GLBL_UP) {
-		if (services[i].logpipe[0] > 0)
-			close(services[i].logpipe[0]);
-		if (services[i].logpipe[1] > 0)
-			close(services[i].logpipe[1]);
-		services[i].logpipe[0] = -1;
-		services[i].logpipe[1] = -1;
+		if (services[i].log_in[0] > 0) {
+			close(services[i].log_in[0]);
+			close(services[i].log_in[1]);
+		}
+		if (services[i].log_out[1] > 0) {
+			close(services[i].log_out[0]);
+			close(services[i].log_out[1]);
+		}
+		services[i].log_in[0] = -1;
+		services[i].log_in[1] = -1;
+		services[i].log_out[0] = -1;
+		services[i].log_out[1] = -1;
 	}
 
 	notify(i);
 }
 
+static void
+close_fd(int fd)
+{
+	if (fd < 0)
+		return;
+
+	for (int i = 0; i < max_service; i++) {
+		if (services[i].log_in[0] == fd)
+			services[i].log_in[0] = -1;
+		if (services[i].log_in[1] == fd)
+			services[i].log_in[1] = -1;
+		if (services[i].log_out[0] == fd)
+			services[i].log_out[0] = -1;
+		if (services[i].log_out[1] == fd)
+			services[i].log_out[1] = -1;
+	}
+	close(fd);
+}
+
 void
 proc_zap(int i) {
-	/* close the logpipe and remove all references to it */
-	if (services[i].islog) {
-		int fd;
-
-		fd = services[i].logpipe[0];
-		if (fd > 0) {
-			for (int i = 0; i < max_service; i++)
-				if (services[i].logpipe[0] == fd)
-					services[i].logpipe[0] = -1;
-			close(fd);
-		}
-
-		fd = services[i].logpipe[1];
-		if (fd > 0) {
-			for (int i = 0; i < max_service; i++)
-				if (services[i].logpipe[1] == fd)
-					services[i].logpipe[1] = -1;
-			close(fd);
-		}
+	/* close the log pipes and remove all references to it */
+	if (IS_LOG(i)) {
+		close_fd(services[i].log_in[0]);
+		close_fd(services[i].log_in[1]);
 	}
 
 	if (!services[i].seen) {
@@ -918,12 +932,15 @@ add_service(const char *name)
 	services[i].startstop = time_now();
 	services[i].timeout = 1;
 	services[i].deadline = 0;
-	services[i].islog = 0;
+
+	services[i].log_in[0] = -1;
+	services[i].log_in[1] = -1;
+
 	if (strcmp(services[i].name, "LOG") == 0)
-		services[i].islog = 1;
+		services[i].log_in[0] = -666;
 
 refresh_log:
-	if (services[i].islog)
+	if (IS_LOG(i))
 		return i;
 
 	char log_target[PATH_MAX];
@@ -934,8 +951,8 @@ refresh_log:
 	if (r < 0) {
 		if (errno == EINVAL)
 			prn(2, "warning: ignoring log, it is not a symlink: %s\n", name);
-		services[i].logpipe[0] = -1;
-		services[i].logpipe[1] = -1;
+		services[i].log_out[0] = -1;
+		services[i].log_out[1] = -1;
 	} else {
 		/* just interpret the last path segment as service name */
 		log_target[r] = 0;
@@ -947,27 +964,26 @@ refresh_log:
 
 		int j = add_service(target_name);
 		if (j < 0) {
-			services[i].logpipe[0] = -1;
-			services[i].logpipe[1] = -1;
+			services[i].log_out[0] = -1;
+			services[i].log_out[1] = -1;
 			return i;
 		}
 
-		int waslog = services[j].islog;
-		services[j].islog = 1;
+		int waslog = IS_LOG(j);
 		services[j].seen = 1;
-		if (services[j].logpipe[0] == -1) {
-			if (pipe(services[j].logpipe) < 0) {
+		if (services[j].log_in[0] == -1) {
+			if (pipe(services[j].log_in) < 0) {
 				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
-				services[j].logpipe[0] = -1;
-				services[j].logpipe[1] = -1;
+				services[j].log_in[0] = -1;
+				services[j].log_in[1] = -1;
 			} else {
-				fcntl(services[j].logpipe[0], F_SETFD, FD_CLOEXEC);
-				fcntl(services[j].logpipe[1], F_SETFD, FD_CLOEXEC);
+				fcntl(services[j].log_in[0], F_SETFD, FD_CLOEXEC);
+				fcntl(services[j].log_in[1], F_SETFD, FD_CLOEXEC);
 			}
 		}
 
-		services[i].logpipe[0] = services[j].logpipe[0];
-		services[i].logpipe[1] = services[j].logpipe[1];
+		services[i].log_out[0] = services[j].log_in[0];
+		services[i].log_out[1] = services[j].log_in[1];
 
 		if (!waslog)
 			process_step(j, EVNT_WANT_RESTART);
@@ -1047,7 +1063,7 @@ do_stop_services() {
 
 	int up = 0;
 	for (int i = 0; i < max_service; i++) {
-		if (services[i].islog)
+		if (IS_LOG(i))
 			continue;
 
 		process_step(i, EVNT_WANT_DOWN);
@@ -1676,7 +1692,7 @@ main(int argc, char *argv[])
 				if (!(services[i].state == PROC_DOWN ||
 				    services[i].state == PROC_FATAL)) {
 					up++;
-					if (services[i].islog)
+					if (IS_LOG(i))
 						uplog++;
 				}
 			}
@@ -1685,7 +1701,7 @@ main(int argc, char *argv[])
 				if (up == uplog) {
 					dprn("signalling %d log processes\n", uplog);
 					for (int i = 0; i < max_service; i++)
-						if (services[i].islog)
+						if (IS_LOG(i))
 							process_step(i, EVNT_WANT_DOWN);
 				}
 			} else {
