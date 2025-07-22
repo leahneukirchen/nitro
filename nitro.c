@@ -940,7 +940,7 @@ add_service(const char *name)
 		services[i].log_in[0] = PENDING_FD;
 
 refresh_log:
-	if (IS_LOG(i) || services[i].log_out[1] == PENDING_FD)
+	if (services[i].log_out[1] == PENDING_FD)
 		return i;
 
 	char log_target[PATH_MAX];
@@ -970,8 +970,7 @@ refresh_log:
 			return i;
 		}
 
-		int waslog = IS_LOG(j);
-		services[j].seen = 1;
+		services[j].seen = 1; /* mark @ service used */
 		if (services[j].log_in[0] == -1) {
 			if (pipe(services[j].log_in) < 0) {
 				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
@@ -985,9 +984,6 @@ refresh_log:
 
 		services[i].log_out[0] = services[j].log_in[0];
 		services[i].log_out[1] = services[j].log_in[1];
-
-		if (!waslog)
-			process_step(j, EVNT_WANT_RESTART);
 	}
 
 	return i;
