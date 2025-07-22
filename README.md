@@ -49,7 +49,8 @@ can contain several files:
   and the signal that killed it (or 0, if it exited regularly).
 - `log`, a symlink to another service directory.
   The standard output of `run` is connected to the standard input of the
-  service under `log` by a pipe.  Currently, this cannot be nested.
+  service under `log` by a pipe.  You can chain these for reliable and
+  supervised log processing.
 - `down`, an optional file that causes nitro to not bring up this
   service by default.
 - Service directories ending with '@' are ignored; they can be used
