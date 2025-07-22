@@ -1600,6 +1600,10 @@ main(int argc, char *argv[])
 		int b = add_service("SYS");
 		process_step(b, EVNT_WANT_UP);
 	} else {
+		if (stat("LOG", &st) == 0) {
+			int l = add_service("LOG");
+			process_step(l, EVNT_WANT_UP);
+		}
 		rescan(1);
 	}
 
