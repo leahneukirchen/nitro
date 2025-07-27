@@ -1,3 +1,6 @@
+/* for pipe2, dup3 on glibc even if they are in POSIX.1-2024. */
+#define _GNU_SOURCE
+
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -348,7 +351,7 @@ proc_launch(int i)
 
 	unsigned char status;
 	int alivepipefd[2];
-	if (pipe(alivepipefd) < 0) {
+	if (pipe2(alivepipefd, O_CLOEXEC) < 0) {
 		/* pipe failed, delay */
 		prn(2, "- nitro: can't create status pipe: errno=%d\n", errno);
 		services[i].state = PROC_DELAY;
@@ -356,8 +359,6 @@ proc_launch(int i)
 		services[i].deadline = 0;
 		return;
 	}
-	fcntl(alivepipefd[0], F_SETFD, FD_CLOEXEC);
-	fcntl(alivepipefd[1], F_SETFD, FD_CLOEXEC);
 
 	pid_t child = fork();
 	if (child == 0) {
@@ -972,13 +973,10 @@ refresh_log:
 
 		services[j].seen = 1; /* mark @ service used */
 		if (services[j].log_in[0] == -1) {
-			if (pipe(services[j].log_in) < 0) {
+			if (pipe2(services[j].log_in, O_CLOEXEC) < 0) {
 				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
 				services[j].log_in[0] = -1;
 				services[j].log_in[1] = -1;
-			} else {
-				fcntl(services[j].log_in[0], F_SETFD, FD_CLOEXEC);
-				fcntl(services[j].log_in[1], F_SETFD, FD_CLOEXEC);
 			}
 		}
 
@@ -1142,10 +1140,9 @@ open_control_socket() {
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, control_socket_path, sizeof addr.sun_path - 1);
 
-	controlsock = socket(AF_UNIX, SOCK_DGRAM, 0);
+	controlsock = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (controlsock < 0)
 		fatal("socket");
-	fcntl(controlsock, F_SETFD, FD_CLOEXEC);
 
 	mode_t mask = umask(0077);
 	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
@@ -1515,9 +1512,8 @@ main(int argc, char *argv[])
 		close(fd[1]);
 	}
 	if (nullfd <= 2) {      /* fd 0,1,2 aren't open */
-		dup2(nullfd, 3);
+		dup3(nullfd, 3, O_CLOEXEC);
 		nullfd = 3;
-		fcntl(nullfd, F_SETFD, FD_CLOEXEC);
 		dup2(nullfd, 0);
 
 		int voidfd = open("/dev/null", O_WRONLY); /* for screaming into */
@@ -1560,19 +1556,13 @@ main(int argc, char *argv[])
 	if (!cwd)
 		fatal("opendir '%s': errno=%d\n", dir, errno);
 
-	if (pipe(selfpipe) < 0)
+	if (pipe2(selfpipe, O_NONBLOCK | O_CLOEXEC) < 0)
 		fatal("selfpipe pipe: errno=%d\n", errno);
-	fcntl(selfpipe[0], F_SETFL, O_NONBLOCK);
-	fcntl(selfpipe[1], F_SETFL, O_NONBLOCK);
-	fcntl(selfpipe[0], F_SETFD, FD_CLOEXEC);
-	fcntl(selfpipe[1], F_SETFD, FD_CLOEXEC);
 
-	if (pipe(globallog) < 0)
+	if (pipe2(globallog, O_CLOEXEC) < 0)
 		fatal("globallog pipe: errno=%d\n", errno);
 	/* keep globallog[0] blocking */
 	fcntl(globallog[1], F_SETFL, O_NONBLOCK);
-	fcntl(globallog[0], F_SETFD, FD_CLOEXEC);
-	fcntl(globallog[1], F_SETFD, FD_CLOEXEC);
 	globallog[1] = -globallog[1]; /* made active when LOG is started */
 
 	sigset_t allset;
