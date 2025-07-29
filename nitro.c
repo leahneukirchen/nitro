@@ -1717,6 +1717,10 @@ main(int argc, char *argv[])
 	close(controlsock);
 	unlink(control_socket_path);
 
+	execle("SYS/reincarnate", "SYS/reincarnate", (char *)0, child_environ);
+	if (errno != ENOENT)
+		prn(2, "- nitro: SYS/reincarnate failed to exec: errno=%d\n", errno);
+
 #ifdef __linux__
 	if (real_pid1) {
 		if (access("SYS/final", X_OK) == 0) {

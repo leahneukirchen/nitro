@@ -70,6 +70,9 @@ You may find runit's `chpst` useful when writing `run` scripts.
   After all processes are terminated, `SYS/final` is run.
   The program `SYS/fatal`, if it exists, is run instead of exiting
   when an unrecoverable, fatal error happens.
+  The program `SYS/reincarnate`, if it exists, is executed into
+  instead of a shutdown.  This can be used to implement an initramfs,
+  for example.
 
 ## Modes of operation
 
