@@ -58,6 +58,18 @@ proc_state_str(enum process_state state)
        }
 }
 
+static int
+streq1(const char *a, const char *b)
+{
+	return (a[0] == b[0] && a[1] == 0) || strcmp(a, b) == 0;
+}
+
+static int
+streq(const char *a, const char *b)
+{
+	return strcmp(a, b) == 0;
+}
+
 void
 noop()
 {
@@ -73,6 +85,9 @@ cleanup_notify()
 void
 notifysock(const char *service)
 {
+	if (*notifypath)
+		return;
+
 	static char default_sock[] = "/run/nitro/nitro.sock";
 	char *path = strdup(sockpath);
 	if (!path || !*path)
@@ -169,7 +184,8 @@ send_and_wait(char cmd, const char *service, int fast)
 		case '?':
 			if (state == PROC_STARTING || state == PROC_UP ||
 			    state == PROC_SHUTDOWN || state == PROC_RESTART) {
-				printf("%s", buf + 1);
+				if (fast)
+					printf("%s", buf + 1);
 				return 0;
 			} else {
 				return 1;
@@ -179,6 +195,45 @@ send_and_wait(char cmd, const char *service, int fast)
 
 	fprintf(stderr, "nitroctl: action timed out\n");
 	return 2;
+}
+
+int
+send_and_print(char cmd, const char *service)
+{
+	notifysock("");
+
+	dprintf(connfd, "%c%s", cmd, service);
+
+	int status = 1;
+
+	ssize_t rd;
+	char buf[4096];
+	rd = read(connfd, buf, sizeof buf);
+	if (rd < 0) {
+		perror("read");
+		exit(111);
+	}
+	if (rd > 0)
+		status = 0;
+
+	char *s = buf;
+	char name[64];
+	long pid, state, wstatus, uptime;
+	int len;
+	while (sscanf(s,  "%63s %ld %ld %ld %ld%n",
+	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
+		s += len;
+
+		printf("%s %s", proc_state_str(state), name);
+		if (pid)
+			printf(" (pid %ld)", pid);
+		printf(" (wstatus %ld) %lds\n", wstatus, uptime);
+	}
+
+	if (streq(s, "ok\n"))
+		status = 0;
+
+	return status;
 }
 
 char *
@@ -214,7 +269,7 @@ normalize(char *service)
 void write_wtmp(int boot) {
 	int fd;
 
-	if ((fd = open(OUR_WTMP, O_WRONLY|O_APPEND)) < 0)
+	if ((fd = open(OUR_WTMP, O_WRONLY | O_APPEND)) < 0)
 		return;
 
 	struct utmp utmp = { 0 };
@@ -237,7 +292,7 @@ void write_wtmp(int boot) {
 	close(fd);
 
 	if (boot) {
-		if ((fd = open(OUR_UTMP, O_WRONLY|O_APPEND)) < 0)
+		if ((fd = open(OUR_UTMP, O_WRONLY | O_APPEND)) < 0)
 			return;
 		write(fd, (char *)&utmp, sizeof utmp);
 		close(fd);
@@ -246,7 +301,7 @@ void write_wtmp(int boot) {
 
 #endif
 
-int
+static int
 suffix(const char *str, const char *suff)
 {
 	size_t a = strlen(str);
@@ -257,90 +312,51 @@ suffix(const char *str, const char *suff)
 int
 main(int argc, char *argv[])
 {
+	const char *cmd = argc > 1 ? argv[1] : "list";
+
 #ifdef INIT_SYSTEM
 	if (getpid() == 1) {
 		execvp("nitro", argv);
 		dprintf(2, "nitroctl: exec init failed: %s\n", strerror(errno));
 		exit(111);
 	}
-#endif
-	char cmd;
 
-#ifdef INIT_SYSTEM
 	if (suffix(argv[0], "init")) {
-		if (argv[1] && strcmp(argv[1], "0") == 0) {
-			cmd = 'S';
-		} else if (argv[1] && strcmp(argv[1], "6") == 0) {
-			cmd = 'R';
-		} else if (argv[1] && strcmp(argv[1], "q") == 0) {
-			cmd = 's';
+		if (argc == 2) {
+			if (streq(argv[1], "0"))
+				cmd = "Shutdown";
+			else if (streq(argv[1], "6") == 0)
+				cmd = "Reboot";
+			else if (streq(argv[1], "q") == 0)
+				cmd = "scan";
+			else
+				goto init_usage;
 		} else {
+init_usage:
 			dprintf(2, "usage: init [0|6|q]\n");
 			exit(2);
 		}
-	} else if (suffix(argv[0], "halt")) {
-		cmd = 'S';
-	} else if (suffix(argv[0], "poweroff")) {
-		cmd = 'S';
-	} else if (suffix(argv[0], "reboot")) {
-		cmd = 'R';
-	} else
-#endif
-	if (argc > 1 && (
-	    strcmp(argv[1], "l") != 0 && strcmp(argv[1], "list") != 0 &&
-	    strcmp(argv[1], "d") != 0 && strcmp(argv[1], "down") != 0 &&
-	    strcmp(argv[1], "u") != 0 && strcmp(argv[1], "up") != 0 &&
-	    strcmp(argv[1], "p") != 0 && strcmp(argv[1], "pause") != 0 &&
-	    strcmp(argv[1], "c") != 0 && strcmp(argv[1], "cont") != 0 &&
-	    strcmp(argv[1], "h") != 0 && strcmp(argv[1], "hup") != 0 &&
-	    strcmp(argv[1], "a") != 0 && strcmp(argv[1], "alarm") != 0 &&
-	    strcmp(argv[1], "i") != 0 && strcmp(argv[1], "interrupt") != 0 &&
-	    strcmp(argv[1], "q") != 0 && strcmp(argv[1], "quit") != 0 &&
-	    strcmp(argv[1], "t") != 0 && strcmp(argv[1], "term") != 0 &&
-	    strcmp(argv[1], "k") != 0 && strcmp(argv[1], "kill") != 0 &&
-	    strcmp(argv[1], "1") != 0 &&
-	    strcmp(argv[1], "2") != 0 &&
-	    strcmp(argv[1], "check") != 0 &&
-	    strcmp(argv[1], "fast-start") != 0 &&
-	    strcmp(argv[1], "fast-stop") != 0 &&
-	    strcmp(argv[1], "fast-restart") != 0 &&
-	    strcmp(argv[1], "pidof") != 0 &&
-	    strcmp(argv[1], "start") != 0 &&
-	    strcmp(argv[1], "r") != 0 && strcmp(argv[1], "restart") != 0 &&
-	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "scan") != 0 && strcmp(argv[1], "rescan") != 0 &&
-	    strcmp(argv[1], "stop") != 0 &&
-	    strcmp(argv[1], "Reboot") != 0 &&
-	    strcmp(argv[1], "Shutdown") != 0)) {
-		dprintf(2, "usage: nitroctl COMMAND [SERVICE]\n");
-		exit(2);
-	} else if (argc == 1) {
-		cmd = 'l';
-	} else {
-		cmd = argv[1][0];
-	}
-
-#ifdef INIT_SYSTEM
-	if ((cmd == 'R' || cmd == 'S') && argv[1]) {
-		if (strcmp(argv[1], "-f") == 0) {
-			if (cmd == 'R') {
-				reboot(RB_AUTOBOOT);
-				dprintf(2, "nitroctl: force reboot failed: %s\n", strerror(errno));
-				exit(111);
-			} else if (cmd == 'S') {
+	} else if (suffix(argv[0], "halt") || suffix(argv[0], "poweroff")) {
+		cmd = "Shutdown";
+		if (argc > 1) {
+			if (streq(argv[1], "-f")) {
 				reboot(RB_POWER_OFF);
 				dprintf(2, "nitroctl: force shutdown failed: %s\n", strerror(errno));
 				exit(111);
+			} else if (streq(argv[1], "-B")) {
+				write_wtmp(1);
+				return 0;
+			} else if (streq(argv[1], "-w")) {
+				write_wtmp(0);
+				return 0;
 			}
 		}
-
-		if (strcmp(argv[1], "-B") == 0) {
-			write_wtmp(1);
-			return 0;
-		}
-
-		if (strcmp(argv[1], "-w") == 0) {
-			write_wtmp(0);
-			return 0;
+	} else if (suffix(argv[0], "reboot")) {
+		cmd = "Reboot";
+		if (argc > 1 && streq(argv[1], "-f")) {
+			reboot(RB_AUTOBOOT);
+			dprintf(2, "nitroctl: force reboot failed: %s\n", strerror(errno));
+			exit(111);
 		}
 	}
 #endif
@@ -360,58 +376,56 @@ main(int argc, char *argv[])
 		exit(111);
 	}
 
-	char *service = argc > 2 ? normalize(argv[2]) : 0;
-
-	if (argv[1]) {
-		if (strcmp(argv[1], "start") == 0 && service)
+	if (streq1(cmd, "list")) {
+		return send_and_print('l', "");
+	} else if (streq1(cmd, "scan") || streq(cmd, "rescan")) {
+		return send_and_print('s', "");
+	} else if (streq(cmd, "Reboot")) {
+		return send_and_print('R', "");
+	} else if (streq(cmd, "Shutdown")) {
+		return send_and_print('S', "");
+	} else if (argc > 2 && (
+	    streq1(cmd, "list") ||
+	    streq1(cmd, "down") ||
+	    streq1(cmd, "up") ||
+	    streq1(cmd, "pause") ||
+	    streq1(cmd, "cont") ||
+	    streq1(cmd, "hup") ||
+	    streq1(cmd, "alarm") ||
+	    streq1(cmd, "interrupt") ||
+	    streq1(cmd, "quit") ||
+	    streq1(cmd, "term") ||
+	    streq1(cmd, "kill") ||
+	    streq1(cmd, "1") ||
+	    streq1(cmd, "2"))) {
+		int err = 0;
+		for (int i = 2; i < argc; i++)
+			if (send_and_print(cmd[0], argv[i]) != 0)
+				err = 1;
+		return err;
+	} else if (argc == 3) {
+		char *service = normalize(argv[2]);
+		if (streq(cmd, "start"))
 			return send_and_wait('u', service, 0);
-		else if (strcmp(argv[1], "fast-start") == 0 && service)
+		else if (streq(cmd, "fast-start"))
 			return send_and_wait('u', service, 1);
-		else if (strcmp(argv[1], "stop") == 0 && service)
+		else if (streq(cmd, "stop"))
 			return send_and_wait('d', service, 0);
-		else if (strcmp(argv[1], "fast-stop") == 0 && service)
+		else if (streq(cmd, "fast-stop"))
 			return send_and_wait('d', service, 1);
-		else if (strcmp(argv[1], "restart") == 0 && service)
+		else if (streq(cmd, "restart"))
 			return send_and_wait('r', service, 0);
-		else if (strcmp(argv[1], "fast-restart") == 0 && service)
+		else if (streq(cmd, "fast-restart") || streq(cmd, "r"))
 			return send_and_wait('r', service, 1);
-		else if (strcmp(argv[1], "pidof") == 0 && service)
+		else if (streq(cmd, "check"))
+			return send_and_wait('?', service, 0);
+		else if (streq(cmd, "pidof"))
 			return send_and_wait('?', service, 1);
-		else if (strcmp(argv[1], "check") == 0 && service)
-			cmd = '?';
-		else if (strcmp(argv[1], "rescan") == 0)
-			cmd = 's';
+		else
+			goto usage;
 	}
 
-	notifysock("");
-
-	dprintf(connfd, "%c%s", cmd, service ? service : "");
-
-	int status = 1;
-
-	ssize_t rd;
-	char buf[4096];
-	rd = read(connfd, buf, sizeof buf);
-	if (rd < 0) {
-		perror("read");
-		exit(111);
-	}
-	if (rd > 0)
-		status = 0;
-
-	char *s = buf;
-	char name[64];
-	long pid, state, wstatus, uptime;
-	int len;
-	while (sscanf(s,  "%63s %ld %ld %ld %ld%n",
-	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
-		s += len;
-
-		printf("%s %s", proc_state_str(state), name);
-		if (pid)
-			printf(" (pid %ld)", pid);
-		printf(" (wstatus %ld) %lds\n", wstatus, uptime);
-	}
-
-	return status;
+usage:
+	dprintf(2, "usage: nitroctl COMMAND [SERVICE ...]\n");
+	exit(2);
 }
