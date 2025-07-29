@@ -166,6 +166,14 @@ send_and_wait(char cmd, const char *service, int fast)
 			if (state == PROC_DOWN || state == PROC_FATAL)
 				return 0;
 			break;
+		case '?':
+			if (state == PROC_STARTING || state == PROC_UP ||
+			    state == PROC_SHUTDOWN || state == PROC_RESTART) {
+				printf("%s", buf + 1);
+				return 0;
+			} else {
+				return 1;
+			}
 		}
 	}
 
@@ -296,6 +304,7 @@ main(int argc, char *argv[])
 	    strcmp(argv[1], "fast-start") != 0 &&
 	    strcmp(argv[1], "fast-stop") != 0 &&
 	    strcmp(argv[1], "fast-restart") != 0 &&
+	    strcmp(argv[1], "pidof") != 0 &&
 	    strcmp(argv[1], "start") != 0 &&
 	    strcmp(argv[1], "r") != 0 && strcmp(argv[1], "restart") != 0 &&
 	    strcmp(argv[1], "s") != 0 && strcmp(argv[1], "scan") != 0 && strcmp(argv[1], "rescan") != 0 &&
@@ -366,6 +375,8 @@ main(int argc, char *argv[])
 			return send_and_wait('r', service, 0);
 		else if (strcmp(argv[1], "fast-restart") == 0 && service)
 			return send_and_wait('r', service, 1);
+		else if (strcmp(argv[1], "pidof") == 0 && service)
+			return send_and_wait('?', service, 1);
 		else if (strcmp(argv[1], "check") == 0 && service)
 			cmd = '?';
 		else if (strcmp(argv[1], "rescan") == 0)

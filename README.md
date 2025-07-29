@@ -122,6 +122,7 @@ Where COMMAND is one of:
 - 2: send signal SIGUSR2 to SERVICE
 - t: send signal SIGTERM to SERVICE
 - k: send signal SIGKILL to SERVICE
+- pidof: print the PID of the SERVICE, or return 1 if it's not up
 - rescan: re-read `/etc/nitro`, start added daemons, stop removed daemons
 - Shutdown: shutdown (poweroff) the system
 - Reboot: reboot the system
