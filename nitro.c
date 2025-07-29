@@ -1761,6 +1761,8 @@ main(int argc, char *argv[])
 			// falls back to RB_HALT_SYSTEM if not possible
 			reboot(RB_POWER_OFF);
 		}
+
+		fatal("reboot: errno=%d", errno);
 	}
 #endif
 
