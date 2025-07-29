@@ -392,6 +392,7 @@ proc_launch(int i)
 		_exit(status);
 	} else if (child < 0) {
 		/* fork failed, delay */
+		prn(2, "- nitro: can't fork %s/%s: errno=%d\n", services[i].name, "run", errno);
 		close(alivepipefd[0]);
 		close(alivepipefd[1]);
 		services[i].state = PROC_DELAY;
@@ -465,6 +466,7 @@ proc_setup(int i)
 		_exit(127);
 	} else if (child < 0) {
 		/* fork failed, delay */
+		prn(2, "- nitro: can't fork %s/%s: errno=%d\n", services[i].name, "setup", errno);
 		services[i].state = PROC_DELAY;
 		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
@@ -538,6 +540,7 @@ proc_finish(int i)
 		_exit(127);
 	} else if (child < 0) {
 		/* fork failed, skip over the finish script */
+		prn(2, "- nitro: can't fork %s/%s: errno=%d\n", services[i].name, "finish", errno);
 		process_step(i, EVNT_FINISHED);
 		return;
 	}
