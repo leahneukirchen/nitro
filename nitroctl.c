@@ -27,7 +27,7 @@
 int connfd;
 const char *sockpath;
 char notifypath[PATH_MAX];
-volatile sig_atomic_t timed_out;
+volatile sig_atomic_t got_signal;
 
 enum process_state {
 	PROC_DOWN = 1,
@@ -71,9 +71,9 @@ streq(const char *a, const char *b)
 }
 
 void
-noop()
+on_signal(int signal)
 {
-	timed_out = 1;
+	got_signal = signal;
 }
 
 void
@@ -133,13 +133,13 @@ send_and_wait(char cmd, const char *service, int fast)
 	dprintf(connfd, "%c%s", cmd, service);
 
 	struct sigaction sa = {
-		.sa_handler = noop,
+		.sa_handler = on_signal,
 		.sa_flags = 0,
 	};
 	sigaction(SIGALRM, &sa, 0);
-	alarm(5);
+	sigaction(SIGINT, &sa, 0);
 
-	while (!timed_out) {
+	while (!got_signal) {
 		ssize_t rd;
 		char buf[64];
 
@@ -193,7 +193,8 @@ send_and_wait(char cmd, const char *service, int fast)
 		}
 	}
 
-	fprintf(stderr, "nitroctl: action timed out\n");
+	if (got_signal == SIGALRM)
+		fprintf(stderr, "nitroctl: action timed out\n");
 	return 2;
 }
 
@@ -312,7 +313,7 @@ suffix(const char *str, const char *suff)
 int
 main(int argc, char *argv[])
 {
-	const char *cmd = argc > 1 ? argv[1] : "list";
+	const char *cmd = 0;
 
 #ifdef INIT_SYSTEM
 	if (getpid() == 1) {
@@ -361,6 +362,35 @@ init_usage:
 	}
 #endif
 
+	int c;
+	while ((c = getopt(argc, argv, "t:")) != -1)
+		switch(c) {
+		case 't': {
+			errno = 0;
+			char *rest = 0;
+			int timeout = strtol(optarg, &rest, 10);
+                        if (timeout < 0 || *rest || errno != 0) {
+	                        dprintf(2, "nitroctl: invalid timeout\n");
+	                        exit(2);
+                        }
+                        alarm(timeout);
+                        break;
+		}
+		default:
+			printf("c=%c\n", c);
+ 			goto usage;
+		}
+
+	argc -= optind;
+        argv += optind;
+
+        if (!cmd) {
+	        if (argc == 0)
+		        cmd = "list";
+	        else
+		        cmd = argv[0];
+        }
+
 #ifdef __linux__
 	static const char default_sock[] = "/run/nitro/nitro.sock";
 #else
@@ -384,7 +414,7 @@ init_usage:
 		return send_and_print('R', "");
 	} else if (streq(cmd, "Shutdown")) {
 		return send_and_print('S', "");
-	} else if (argc > 2 && (
+	} else if (argc > 1 && (
 	    streq1(cmd, "list") ||
 	    streq1(cmd, "down") ||
 	    streq1(cmd, "up") ||
@@ -399,12 +429,12 @@ init_usage:
 	    streq1(cmd, "1") ||
 	    streq1(cmd, "2"))) {
 		int err = 0;
-		for (int i = 2; i < argc; i++)
+		for (int i = 1; i < argc; i++)
 			if (send_and_print(cmd[0], argv[i]) != 0)
 				err = 1;
 		return err;
-	} else if (argc == 3) {
-		char *service = normalize(argv[2]);
+	} else if (argc == 2) {
+		char *service = normalize(argv[1]);
 		if (streq(cmd, "start"))
 			return send_and_wait('u', service, 0);
 		else if (streq(cmd, "fast-start"))
