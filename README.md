@@ -68,6 +68,8 @@ You may find runit's `chpst` useful when writing `run` scripts.
   `SYS/finish` is run before all remaining services are killed and the
   system is brought down.
   After all processes are terminated, `SYS/final` is run.
+  The program `SYS/fatal`, if it exists, is run instead of exiting
+  when an unrecoverable, fatal error happens.
 
 ## Modes of operation
 

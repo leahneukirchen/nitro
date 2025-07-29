@@ -285,7 +285,14 @@ prn(int fd, const char *fmt, ...)
 	return safe_write(fd, buf, out - buf);
 }
 
-#define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); exit(111); } while (0)
+int
+panic()
+{
+	execle("SYS/fatal", "SYS/fatal", (char *)0, child_environ);
+	exit(111);
+}
+
+#define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); panic(); } while (0)
 #ifdef DEBUG
 #define dprn(...) prn(2, __VA_ARGS__)
 #else
@@ -1589,7 +1596,7 @@ main(int argc, char *argv[])
 	prn(2, "- nitro: booting\n");
 
 	struct stat st;
-	if (stat("SYS", &st) == 0) {
+	if (stat("SYS/setup", &st) == 0) {
 		int b = add_service("SYS");
 		process_step(b, EVNT_WANT_UP);
 	} else {
