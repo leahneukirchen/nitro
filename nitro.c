@@ -435,6 +435,8 @@ proc_launch(int i)
 	services[i].state = PROC_STARTING;
 	services[i].timeout = DELAY_STARTING;
 	services[i].deadline = 0;
+
+	notify(i);
 }
 
 void
