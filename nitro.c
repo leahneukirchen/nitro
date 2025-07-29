@@ -352,6 +352,7 @@ proc_launch(int i)
 		services[i].state = PROC_ONESHOT;
 		services[i].timeout = 0;
 		services[i].deadline = 0;
+		notify(i);
 
 		return;
 	}
