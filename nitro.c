@@ -558,6 +558,47 @@ proc_finish(int i)
 	services[i].deadline = 0;
 }
 
+int
+charsig(char c)
+{
+	switch (c) {
+	case 'p': return SIGSTOP;
+	case 'c': return SIGCONT;
+	case 'h': return SIGHUP;
+	case 'a': return SIGALRM;
+	case 'i': return SIGINT;
+	case 'q': return SIGQUIT;
+	case '1': return SIGUSR1;
+	case '2': return SIGUSR2;
+	case 't': return SIGTERM;
+	case 'k': return SIGKILL;
+	default: return 0;
+	}
+}
+
+int
+downsig(int i)
+{
+	char buf[PATH_MAX];
+	char *instance = strchr(services[i].name, '@');
+	if (instance)
+		*instance = 0;
+	sprn(buf, buf + sizeof buf, "%s%s/down-signal",
+	    services[i].name, (instance ? "@" : ""));
+	if (instance)
+		*instance = '@';
+
+	int fd = open(buf, O_RDONLY);
+	if (fd < 0)
+		return SIGTERM;
+
+	char c = 't';
+	read(fd, &c, 1);
+	close(fd);
+
+	return charsig(c) ? charsig(c) : SIGTERM;
+}
+
 void
 proc_shutdown(int i)
 {
@@ -567,7 +608,7 @@ proc_shutdown(int i)
 	}
 
 	if (services[i].pid) {
-		kill(services[i].pid, SIGTERM);
+		kill(services[i].pid, downsig(i));
 		kill(services[i].pid, SIGCONT);
 	}
 
@@ -1199,24 +1240,6 @@ notify(int i)
 			sendto(controlsock, notifybuf, strlen(notifybuf),
 			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr);
 		}
-	}
-}
-
-int
-charsig(char c)
-{
-	switch (c) {
-	case 'p': return SIGSTOP;
-	case 'c': return SIGCONT;
-	case 'h': return SIGHUP;
-	case 'a': return SIGALRM;
-	case 'i': return SIGINT;
-	case 'q': return SIGQUIT;
-	case '1': return SIGUSR1;
-	case '2': return SIGUSR2;
-	case 't': return SIGTERM;
-	case 'k': return SIGKILL;
-	default: return 0;
 	}
 }
 

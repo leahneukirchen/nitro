@@ -108,7 +108,7 @@ Where COMMAND is one of:
 - list: show a list of services and their state, pid, uptime and last
   exit status.
 - up: start SERVICE
-- down: stop SERVICE
+- down: stop SERVICE (sending SIGTERM or the first letter of `./down-signal`)
 - start: start SERVICE, waiting for success
 - restart: restart SERVICE, waiting for success
 - stop: stop SERVICE, waiting for success
