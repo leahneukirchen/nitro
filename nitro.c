@@ -778,8 +778,8 @@ process_step(int i, enum process_events ev)
 			break;
 
 		case PROC_ONESHOT:
-			proc_finish(i);
 			services[i].state = PROC_RESTART;
+			proc_finish(i);
 			break;
 
 		case PROC_DOWN:
