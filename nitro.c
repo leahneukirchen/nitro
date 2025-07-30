@@ -140,6 +140,9 @@ DIR *notifydir;
 char notifypath[256];
 const char *control_socket_path;
 
+long total_reaps;
+long total_sv_reaps;
+
 int pid1;
 int real_pid1;
 
@@ -236,6 +239,8 @@ sprn(char *out, char *oute, const char *fmt, ...)
 			s++;
 			if (*s == 'd') {
 				out = steprl(out, oute, (int)va_arg(ap, int));
+			} else  if (*s == 'l') {
+				out = steprl(out, oute, (long)va_arg(ap, long));
 			} else if (*s == 's') {
 				out = stecpy(out, oute, va_arg(ap, char *));
 			} else if (*s == 'c') {
@@ -1310,6 +1315,22 @@ handle_control_sock() {
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
+	case '#':
+	{
+		if (srclen == 0)
+			return;
+
+		char replybuf[64];
+		char *replyend = replybuf + sizeof replybuf;
+		char *reply = replybuf;
+		reply += sprn(reply, replyend, "%d %l %l\n",
+		    1,
+		    total_reaps,
+		    total_sv_reaps);
+		sendto(controlsock, replybuf, reply - replybuf,
+		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
+		return;
+	}
 	case 'u':
 	case 'd':
 	case 'r':
@@ -1373,8 +1394,12 @@ fail:
 void
 has_died(pid_t pid, int status)
 {
+	total_reaps++;
+
 	for (int i = 0; i < max_service; i++) {
 		if (services[i].setuppid == pid) {
+			total_sv_reaps++;
+
 			dprn("setup %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 
@@ -1419,15 +1444,20 @@ has_died(pid_t pid, int status)
 		}
 
 		if (services[i].pid == pid) {
+			total_sv_reaps++;
+
 			dprn("service %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].pid = 0;
 			services[i].wstatus = status;
 			process_step(i, EVNT_EXITED);
+
 			return;
 		}
 
 		if (services[i].finishpid == pid) {
+			total_sv_reaps++;
+
 			dprn("finish script %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].finishpid = 0;

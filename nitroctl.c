@@ -408,6 +408,8 @@ init_usage:
 
 	if (streq1(cmd, "list")) {
 		return send_and_print('l', "");
+	} else if (streq(cmd, "info")) {
+		return send_and_print('#', "");
 	} else if (streq1(cmd, "scan") || streq(cmd, "rescan")) {
 		return send_and_print('s', "");
 	} else if (streq(cmd, "Reboot")) {
