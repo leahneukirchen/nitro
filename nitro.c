@@ -237,17 +237,16 @@ sprn(char *out, char *oute, const char *fmt, ...)
 	for (const char *s = fmt; *s && out < oute; s++) {
 		if (*s == '%') {
 			s++;
-			if (*s == 'd') {
+			if (*s == 'd')
 				out = steprl(out, oute, (int)va_arg(ap, int));
-			} else  if (*s == 'l') {
+			else if (*s == 'l')
 				out = steprl(out, oute, (long)va_arg(ap, long));
-			} else if (*s == 's') {
+			else if (*s == 's')
 				out = stecpy(out, oute, va_arg(ap, char *));
-			} else if (*s == 'c') {
+			else if (*s == 'c')
 				*out++ = va_arg(ap, int);
-			} else {
+			else
 				abort();
-			}
 		} else {
 			*out++ = *s;
 		}
@@ -273,13 +272,12 @@ prn(int fd, const char *fmt, ...)
 	for (const char *s = fmt; *s && out < oute; s++) {
 		if (*s == '%') {
 			s++;
-			if (*s == 'd') {
+			if (*s == 'd')
 				out = steprl(out, oute, (int)va_arg(ap, int));
-			} else if (*s == 's') {
+			else if (*s == 's')
 				out = stecpy(out, oute, va_arg(ap, char *));
-			} else {
+			else
 				abort();
-			}
 		} else {
 			*out++ = *s;
 		}
@@ -887,13 +885,12 @@ process_step(int i, enum process_events ev)
 		services[i].deadline = 0;
 		switch (services[i].state) {
 		case PROC_DELAY:
-			if (global_state == GLBL_WAIT_TERM) {
+			if (global_state == GLBL_WAIT_TERM)
 				slayall();
-			} else if (global_state == GLBL_WAIT_KILL) {
+			else if (global_state == GLBL_WAIT_KILL)
 				global_state = GLBL_FINAL;
-			} else {
+			else
 				proc_setup(i);
-			}
 			break;
 
 		case PROC_STARTING:
