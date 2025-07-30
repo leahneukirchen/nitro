@@ -187,9 +187,8 @@ send_and_wait(char cmd, const char *service, int fast)
 				if (fast)
 					printf("%s", buf + 1);
 				return 0;
-			} else {
-				return 1;
 			}
+			return 1;
 		}
 	}
 
@@ -406,17 +405,17 @@ init_usage:
 		exit(111);
 	}
 
-	if (streq1(cmd, "list")) {
+	if (streq1(cmd, "list"))
 		return send_and_print('l', "");
-	} else if (streq(cmd, "info")) {
+	else if (streq(cmd, "info"))
 		return send_and_print('#', "");
-	} else if (streq1(cmd, "scan") || streq(cmd, "rescan")) {
+	else if (streq1(cmd, "scan") || streq(cmd, "rescan"))
 		return send_and_print('s', "");
-	} else if (streq(cmd, "Reboot")) {
+	else if (streq(cmd, "Reboot"))
 		return send_and_print('R', "");
-	} else if (streq(cmd, "Shutdown")) {
+	else if (streq(cmd, "Shutdown"))
 		return send_and_print('S', "");
-	} else if (argc > 1 && (
+	else if (argc > 1 && (
 	    streq1(cmd, "list") ||
 	    streq1(cmd, "down") ||
 	    streq1(cmd, "up") ||
