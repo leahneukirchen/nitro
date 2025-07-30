@@ -1241,8 +1241,13 @@ notify(int i)
 			strncpy(addr.sun_path, notifypath, sizeof addr.sun_path - 1);
 			strcat(addr.sun_path, name);
 
-			sendto(controlsock, notifybuf, strlen(notifybuf),
-			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr);
+			if (sendto(controlsock, notifybuf, strlen(notifybuf),
+			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr) < 0) {
+				if (errno == ECONNREFUSED) {
+					// remove stale socket
+					unlinkat(dirfd(notifydir), name, 0);
+				}
+			}
 		}
 	}
 }
