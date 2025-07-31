@@ -233,6 +233,8 @@ send_and_print(char cmd, const char *service)
 
 	if (streq(s, "ok\n"))
 		status = 0;
+	else if (streq(s, "error\n"))
+		status = 1;
 	else if (s == buf)
 		printf("%s", s);
 
