@@ -213,7 +213,7 @@ send_and_print(char cmd, const char *service)
 		perror("read");
 		exit(111);
 	}
-	if (rd > 0)
+	if (rd > 0 || cmd == 'l')
 		status = 0;
 	buf[rd] = 0;
 
