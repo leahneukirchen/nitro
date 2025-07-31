@@ -208,13 +208,14 @@ send_and_print(char cmd, const char *service)
 
 	ssize_t rd;
 	char buf[4096];
-	rd = read(connfd, buf, sizeof buf);
+	rd = read(connfd, buf, sizeof buf - 1);
 	if (rd < 0) {
 		perror("read");
 		exit(111);
 	}
 	if (rd > 0)
 		status = 0;
+	buf[rd] = 0;
 
 	char *s = buf;
 	char name[64];
