@@ -1325,8 +1325,9 @@ handle_control_sock() {
 		char replybuf[64];
 		char *replyend = replybuf + sizeof replybuf;
 		char *reply = replybuf;
-		reply += sprn(reply, replyend, "%d %l %l\n",
-		    1,
+		reply += sprn(reply, replyend, "# %d %d %l %l\n",
+		    getpid(),
+		    max_service,
 		    total_reaps,
 		    total_sv_reaps);
 		sendto(controlsock, replybuf, reply - replybuf,
