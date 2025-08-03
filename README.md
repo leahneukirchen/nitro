@@ -55,6 +55,8 @@ can contain several files:
   service by default.
 - Service directories ending with '@' are ignored; they can be used
   for parameterized services.
+- Service names must be shorter than 64 chars, and not contain `/`,
+  `,` or newlines.
 
 You may find runit's `chpst` useful when writing `run` scripts.
 

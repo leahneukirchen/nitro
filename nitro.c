@@ -339,6 +339,22 @@ chdir_at(char *dir)
 	return instance;
 }
 
+int
+valid_service_name(const char *name)
+{
+	if (name[0] == '.')
+		return 0;
+	if (strcmp(name, "SYS") == 0)
+		return 0;
+
+	size_t i;
+	for (i = 0; name[i]; i++)
+		if (name[i] == '/' || name[i] == ',' || name[i] == '\n')
+			return 0;
+
+	return i < 64;
+}
+
 void process_step(int i, enum process_events ev);
 void notify(int);
 void slayall();
@@ -1057,8 +1073,9 @@ rescan(int first)
 		char *name = ent->d_name;
 		struct stat st;
 
-		if (name[0] == '.')
+		if (!valid_service_name(name))
 			continue;
+
 		if (stat(name, &st) < 0)
 			continue;
 		if (!S_ISDIR(st.st_mode))
@@ -1066,10 +1083,6 @@ rescan(int first)
 
 		// ignore parametrized services
 		if (name[strlen(name) - 1] == '@')
-			continue;
-
-		// ignore magic bootup/shutdown service
-		if (strcmp(name, "SYS") == 0)
 			continue;
 
 		int i = add_service(name);
@@ -1343,7 +1356,7 @@ handle_control_sock() {
 		if (!buf[1])
 			goto fail;
 		int i = find_service(buf + 1);
-		if (strcmp(buf + 1, "SYS") != 0 &&
+		if (valid_service_name(buf + 1) &&
 		    stat_slash_to_at(buf + 1, ".", &st) == 0)
 			i = add_service(buf + 1);
 		if (i < 0)
