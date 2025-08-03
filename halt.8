@@ -1,0 +1,48 @@
+.Dd August 3, 2025
+.Dt HALT 8
+.Os
+.Sh NAME
+.Nm halt ,
+.Nm reboot ,
+.Nm poweroff
+.Nd stop the system
+.Sh SYNOPSIS
+.Nm halt
+.Op Fl f
+.Op Fl w
+.Op Fl B
+.Nm reboot
+.Op Fl f
+.Nm poweroff
+.Op Fl f
+.Sh DESCRIPTION
+.Nm halt
+/
+.Nm reboot
+/
+.Nm poweroff
+tells
+.Xr nitro 8
+to bring down, reboot, or power off the system.
+Without
+.Fl f ,
+it is a shortcut for
+.Cm nitroctl Shutdown
+/
+.Cm nitroctl Reboot .
+.Bl -tag -width indent
+.It Fl f
+Force halt or reboot, don't call
+.Xr init 8 .
+This is
+.Sy dangerous !
+.It Fl w
+Just write the wtmp record.
+.It Fl B
+Just write the wtmp record, but for a boot.
+.El
+.Sh SEE ALSO
+.Xr nitro 8
+.Sh AUTHORS
+.An Leah Neukirchen ,
+.Mt leah@vuxu.org .

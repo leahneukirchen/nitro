@@ -1,0 +1,88 @@
+.Dd August 3, 2025
+.Dt NITROCTL 1
+.Os
+.Sh NAME
+.Nm nitroctl
+.Nd control and manage services monitored by nitro
+.Sh SYNOPSIS
+.Nm
+.Op Fl t Ar timeout
+.Ar command
+.Ar services\ ...
+.Sh DESCRIPTION
+.Nm
+supports the following commands:
+.Pp
+.Bl -tag -width 8n -compact
+.It Cm list
+List all services and information about them (default).
+.It Cm scan , Cm rescan
+Rescan the service list from the file system.
+.It Cm up
+Request
+.Ar services
+to be up.
+.It Cm down
+Request
+.Ar services
+to be down.
+.It Cm start
+Request
+.Ar service
+to be up and wait for it to enter
+.Dv UP .
+.It Cm stop
+Request
+.Ar service
+to be down and wait for it to enter
+.Dv DOWN .
+.It Cm restart
+Request
+.Ar service
+to be restarted and wait for it to be
+.Dv UP
+again.
+.It Cm pause , Cm cont , Cm hup , Cm alarm , Cm interrupt , Cm quit , Cm term , Cm kill , Cm 1 , Cm 2
+Send the signal to
+.Ar services .
+.It Cm pidof
+Print PID of the
+.Ar service .
+.It Cm check
+Exit with status 0 if the
+.Ar service
+is running.
+.It Cm Reboot
+Request system reboot.
+.It Cm Shutdown
+Request system shutdown.
+.El
+.Pp
+By default, the
+.Ar timeout
+is infinite.
+.Sh ENVIRONMENT
+.Bl -tag -width Ds
+.It Ev NITRO_SOCK
+The control socket
+.Pq by default: Pa /var/run/nitro/nitro.sock
+where
+.Xr nitro 8
+listens for commands.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr nitro 8
+.Sh AUTHORS
+.An Leah Neukirchen Aq Mt leah@vuxu.org
+.Sh LICENSE
+.Nm
+is in the public domain.
+.Pp
+To the extent possible under law,
+the creator of this work
+has waived all copyright and related or
+neighboring rights to this work.
+.Pp
+.Lk http://creativecommons.org/publicdomain/zero/1.0/

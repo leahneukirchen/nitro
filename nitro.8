@@ -1,0 +1,114 @@
+.Dd August 3, 2025
+.Dt NITRO 8
+.Os
+.Sh NAME
+.Nm nitro
+.Nd a tiny but flexible init system and process supervisior
+.Sh SYNOPSIS
+.Nm
+.Op Ar dir
+.Sh DESCRIPTION
+.Nm
+is a service supervisor that can be used as a Unix init system.
+.Pp
+Every directory inside
+.Ar dir
+.Pq by default: Pa /etc/nitro
+defines a service.
+.Sh SERVICE DIRECTORIES
+Service directories must have a name shorter than 64 characters and
+must not contain
+.Sq \&,
+or newlines in the file name.
+Service directories cannot be nested.
+.Pp
+Service directories can contain the following files:
+.Bl -tag -width Ds
+.It Pa setup
+If it exists, this script is run when starting the service,
+the service enters state
+.Dv SETUP .
+When
+.Pa setup
+exits with status 111,
+the service enters state
+.Dv FATAL .
+When
+.Pa setup
+exits with state 0,
+the service progresses to
+state
+.Dv STARTING .
+Else,
+.Pa setup
+is restarted after a delay.
+.It Pa run
+If it exists, this script should exec into the service.
+If this file does not exist, the service is a
+.Dv ONESHOT .
+When the service does not exit for 2 seconds,
+it enters state
+.Dv UP .
+.It Pa log
+If this is a symlink to another service directory,
+the standard output of the service is connected
+to the standard input of the target service using a pipe.
+.It Pa finish
+After the service has exited, this script is run
+with two arguments, the exit status of the service
+and the signal if the service exited due to a signal.
+Then, the service enters state
+.Dv DOWN .
+.It Pa down
+If this file exists, the service is not brought up automatically.
+.It Pa down-signal
+If this file exists, the first character of it encodes the signal
+.Pq see Xr nitroctl 1
+that is sent to the service to bring it down, else SIGTERM.
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width Ds
+.It Ev NITRO_SOCK
+The control socket
+.Pq by default: Pa /var/run/nitro/nitro.sock
+where
+.Nm
+listens for commands sent by
+.Xr nitroctl 1 .
+.El
+.Sh FILES
+The following special files are used inside the service directory:
+.Bl -tag -width Ds
+.It Pa SYS/setup
+This script is run very early in boot, before all services are started.
+It can already start services using
+.Xr nitroctl 1 .
+.It Pa SYS/finish
+When system shutdown is requested, this script is run.
+When it exits, the remaining services are brought down.
+.It Pa SYS/reincarnate
+If this script exists,
+.Nm
+execs into it instead of rebooting or shutting down.
+.It Pa SYS/final
+This script is run after all services are stopped.
+When it exits, the root file system is remounted read-only
+and the system shuts down/reboots.
+.El
+.Sh EXIT STATUS
+.Nm
+tries hard not to exit, being used as pid 1.
+.Sh SEE ALSO
+.Xr nitroctl 1
+.Sh AUTHORS
+.An Leah Neukirchen Aq Mt leah@vuxu.org
+.Sh LICENSE
+.Nm
+is in the public domain.
+.Pp
+To the extent possible under law,
+the creator of this work
+has waived all copyright and related or
+neighboring rights to this work.
+.Pp
+.Lk http://creativecommons.org/publicdomain/zero/1.0/
