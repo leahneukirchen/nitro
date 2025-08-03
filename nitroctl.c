@@ -97,10 +97,6 @@ notifysock(const char *service)
 	snprintf(notifypath, sizeof notifypath,
 	    "%s/notify/%s,%ld", path, service, (long)getpid());
 
-	for (char *s = notifypath + strlen(path) + strlen("/notify/"); *s; s++)
-		if (*s == '/')
-			*s = ',';
-
 	struct sockaddr_un my_addr = { 0 };
 	my_addr.sun_family = AF_UNIX;
 	strncpy(my_addr.sun_path, notifypath, sizeof my_addr.sun_path - 1);
@@ -244,7 +240,7 @@ send_and_print(char cmd, const char *service)
 char *
 normalize(char *service)
 {
-	if (!service || (service[0] != '/' && service[0] != '.'))
+	if (!(service[0] == '/' || (service[0] == '.' && (!service[1] || service[1] == '/'))))
 		return service;
 
 	char *buf = realpath(service, 0);
@@ -253,12 +249,7 @@ normalize(char *service)
 		exit(1);
 	}
 
-	char *end = strrchr(buf, '/');
-	if (strcmp(end, "/log") == 0)
-		while (end > buf && *--end != '/')
-			;
-
-	return end + 1;
+	return strrchr(buf, '/') + 1;
 }
 
 #ifdef INIT_SYSTEM
