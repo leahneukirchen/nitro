@@ -311,13 +311,19 @@ main(int argc, char *argv[])
 	const char *cmd = 0;
 
 #ifdef INIT_SYSTEM
-	if (getpid() == 1) {
-		execvp("nitro", argv);
-		dprintf(2, "nitroctl: exec init failed: %s\n", strerror(errno));
-		exit(111);
-	}
-
 	if (suffix(argv[0], "init")) {
+		if (getpid() == 1) {
+			execvp("nitro", argv);
+			dprintf(2, "nitroctl: exec init failed: %s\n", strerror(errno));
+
+			if (argc == 2)
+				chdir(argv[1]);
+			else
+				chdir("/etc/nitro");
+			execl("SYS/fatal", "SYS/fatal", (char *)0);
+			exit(111);
+		}
+
 		if (argc == 2) {
 			if (streq(argv[1], "0"))
 				cmd = "Shutdown";
