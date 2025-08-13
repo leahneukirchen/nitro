@@ -295,8 +295,6 @@ void write_wtmp(int boot) {
 	}
 }
 
-#endif
-
 static int
 suffix(const char *str, const char *suff)
 {
@@ -304,6 +302,7 @@ suffix(const char *str, const char *suff)
 	size_t b = strlen(suff);
 	return b <= a && strcmp(str + a - b, suff) == 0;
 }
+#endif
 
 int
 main(int argc, char *argv[])
