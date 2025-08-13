@@ -1,3 +1,6 @@
+/* nitro - a tiny but flexible init system and process supervisior */
+/* SPDX-License-Identifier: 0BSD */
+
 /* for pipe2, dup3 on glibc even if they are in POSIX.1-2024. */
 #define _GNU_SOURCE
 

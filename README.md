@@ -160,6 +160,13 @@ You can put the control socket onto a bind mount and remote control
 `nitro` using `nitroctl` from the outside by pointing `NITRO_SOCK` to
 the appropriate target.
 
+## Nitro on FreeBSD
+
+You can add this line to `/etc/ttys` to run `nitro` supervised by
+FreeBSD `init`:
+
+	/etc/nitro "/usr/local/sbin/nitro" "" on
+
 ## Authors
 
 Leah Neukirchen <leah@vuxu.org>
@@ -172,9 +179,4 @@ daemontools, freedt, runit, perp, and s6.
 
 ## Copying 
 
-nitro is in the public domain.
-
-To the extent possible under law, the creator of this work has waived all
-copyright and related or neighboring rights to this work.
-
-http://creativecommons.org/publicdomain/zero/1.0/
+nitro is licensed under the 0BSD license, see LICENSE for details.

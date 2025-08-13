@@ -1,3 +1,6 @@
+/* nitroctl - control and manage services monitored by nitro */
+/* SPDX-License-Identifier: 0BSD */
+
 #ifdef __linux__
 #define INIT_SYSTEM
 #endif
