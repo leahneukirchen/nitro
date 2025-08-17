@@ -1212,9 +1212,22 @@ open_control_socket() {
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, control_socket_path, sizeof addr.sun_path - 1);
 
+	int checksock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	if (checksock < 0)
+		fatal("check socket: errno=%d", errno);
+	if (connect(checksock, (struct sockaddr *)&addr, sizeof addr) == 0)
+		fatal("socket in use outside of nitro\n");
+	else if (errno == EPROTOTYPE)
+		fatal("socket already in use\n");
+	else if (errno == ECONNREFUSED) // stale socket, remove
+		unlink(control_socket_path);
+	// else if (errno == ENOENT) // socket doesn't exist, good
+	// ignore other errors, fail below.
+	close(checksock);
+
 	controlsock = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (controlsock < 0)
-		fatal("socket");
+		fatal("control socket: errno=%d", errno);
 
 	mode_t mask = umask(0077);
 	int r = bind(controlsock, (struct sockaddr *)&addr, sizeof addr);
