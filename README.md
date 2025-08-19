@@ -25,9 +25,11 @@ Nitro is configured by a directory of scripts, defaulting to
 - No unbounded file descriptor usage during runtime.
 - One single self-contained binary, plus one optional binary to
   control the system.
-- No compilation steps needed, services are simple scripts.
+- No configuration compilation steps needed, services are simple
+  directories containing scripts.
 - Supports reliable restarting of services.
 - Reliable logging mechanisms per service or as default.
+- Support for logging chains spread over several services.
 - Works independently of properly set system clock.
 - Can be run on FreeBSD from /etc/ttys (sets up file descriptors 0, 1, 2).
 - Tiny static binary when using musl libc.
@@ -82,7 +84,7 @@ The lifecycle of a machine/container/session using nitro consists of
 three phases.
 
 First, the system is brought up.  If there is a special service
-`SYS`, its `setup` script is run first.  After it finishes, all
+g`SYS`, its `setup` script is run first.  After it finishes, all
 services not marked `down` are brought up.
 
 When a service exits, it's being restarted, potentially waiting for
@@ -101,7 +103,7 @@ when it was used as a container init or unprivileged supervisor.
 ## Controlling nitro with nitroctl
 
 You can remote control a running nitro instance using the tool
-nitroctl.
+`nitroctl`.
 
 Usage: `nitroctl [COMMAND] [SERVICE]`
 
@@ -131,18 +133,19 @@ Where COMMAND is one of:
 
 ## Controlling nitro by signals
 
-rescan can also be triggered by sending SIGHUP to nitro.
+rescan can also be triggered by sending `SIGHUP` to nitro.
 
-reboot can also be triggered by sending SIGINT to nitro.
+reboot can also be triggered by sending `SIGINT` to nitro.
 
-shutdown can also be triggered by sending SIGTERM to nitro, unless
+shutdown can also be triggered by sending `SIGTERM` to nitro, unless
 nitro is used as Linux pid 1.
 
-## Nitro as init for Linux
+## Nitro as `init` for Linux
 
 Nitro is self-contained and can be booted directly as pid 1.
 It will mount `/dev` and `/run` when required, everything else
 should be done with `SYS/setup`.
+
 When receiving Ctrl-Alt-Delete, nitro triggers an orderly reboot.
 
 ## Nitro as init for a Docker container
