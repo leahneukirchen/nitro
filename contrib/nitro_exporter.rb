@@ -25,6 +25,13 @@ class NitroExporter
         end
       }
 
+      info = `nitroctl info`
+      if info =~ /^# (\d+) (\d+) (\d+) (\d+)$/
+        r.write %Q|nitro_pid{hostname=#{HOSTNAME_DUMP}} #{$1}\n|
+        r.write %Q|nitro_services{hostname=#{HOSTNAME_DUMP}} #{$2}\n|
+        r.write %Q|nitro_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$3}\n|
+        r.write %Q|nitro_service_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$4}\n|
+      end
     end
 
     r.finish
