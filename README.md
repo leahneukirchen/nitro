@@ -110,9 +110,10 @@ nitro will send a SIGTERM signal to all running services and waits for
 up to 7 seconds for the service to exit.  Otherwise, a SIGKILL is
 sent.  After all processes are terminated, `SYS/final` is run.
 
-Finally, nitro reboots or shuts down the system; or just exits
-when it was used as a container init or unprivileged supervisor.
-(When a reboot was requested, it re-execs itself.)
+Finally, nitro reboots or shuts down the system; or just exits when it
+was used as a container init or unprivileged supervisor.  (When a
+reboot was requested, it re-execs itself.  This requires being called
+with absolute path for the binary and the service directory.)
 
 ## Controlling nitro with nitroctl
 
