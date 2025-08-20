@@ -1021,6 +1021,9 @@ refresh_log:
 
 	char log_target[PATH_MAX];
 	char log_link[PATH_MAX];
+	char *instance = strchr(name, '@');
+	if (instance)
+		*(instance + 1) = 0;
 	sprn(log_link, log_link + sizeof log_link, "%s/log", name);
 
 	ssize_t r = readlink(log_link, log_target, sizeof log_target - 1);
