@@ -4,6 +4,9 @@ ALL=nitro nitroctl
 
 all: $(ALL)
 
+debug: CFLAGS+=-g -Og -DDEBUG
+debug: $(ALL)
+
 clean: FRC
 	rm -f $(ALL)
 
