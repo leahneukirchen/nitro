@@ -1105,13 +1105,23 @@ rescan(int first)
 		}
 	}
 
-	for (i = 0; i < max_service; i++)
+	for (i = 0; i < max_service; i++) {
+		if (IS_LOG(i) && services[i].state == PROC_DOWN &&
+		    strchr(services[i].name, '@')) {
+			services[i].seen = 0;
+			for (int j = 0; j < max_service; j++)
+				if (i != j && services[i].log_in[1] == services[j].log_out[1]) {
+					services[i].seen = 1;
+					break;
+				}
+		}
 		if (!services[i].seen) {
 			if (!strchr(services[i].name, '@'))
 				process_step(i, EVNT_WANT_DOWN);
 			if (services[i].state == PROC_DOWN)
 				proc_zap(i);
 		}
+	}
 }
 
 void
