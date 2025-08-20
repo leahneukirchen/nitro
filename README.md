@@ -78,6 +78,20 @@ You may find runit's `chpst` useful when writing `run` scripts.
   instead of a shutdown.  This can be used to implement an initramfs,
   for example.
 
+## Parametrized services
+
+Service directories ending in `@` are ignored, however you can refer
+to parametrized services by symlinks (either in the service directory
+or as a `log` symlink), or start them manually using `nitroctl`.
+
+The part after the `@`, the parameter, is passed to the scripts as
+first argument.
+
+For example, given you have a script `agetty@/run` and a symlink
+`agetty@tty1` -> `agetty@`, nitro will spawn `agetty@/run tty1`.  Upon
+running `nitroctl up agetty@tty2`, nitro will spawn `agetty@/run
+tty2`, even if it does not exist in the service directory.
+
 ## Modes of operation
 
 The lifecycle of a machine/container/session using nitro consists of
