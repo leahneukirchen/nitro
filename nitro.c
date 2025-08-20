@@ -1002,7 +1002,7 @@ add_service(const char *name)
 
 	max_service++;
 
-	strcpy(services[i].name, name);
+	stecpy(services[i].name, services[i].name + sizeof services[i].name, name);
 	services[i].pid = 0;
 	services[i].state = PROC_DELAY;
 	services[i].startstop = time_now();
@@ -1212,8 +1212,7 @@ open_control_socket() {
 		mkdir(dir, 0700);
 		// ignore errors
 
-		strcpy(notifypath, dir);
-		strcat(notifypath, "/notify/");
+		sprn(notifypath, notifypath + sizeof notifypath, "%s/notify", dir);
 		mkdir(notifypath, 0700);
 		// ignore errors
 
@@ -1224,7 +1223,7 @@ open_control_socket() {
 
 	struct sockaddr_un addr = { 0 };
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, control_socket_path, sizeof addr.sun_path - 1);
+	stecpy(addr.sun_path, addr.sun_path + sizeof addr.sun_path, control_socket_path);
 
 	int checksock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (checksock < 0)
@@ -1281,8 +1280,9 @@ notify(int i)
 		if (notifyprefix(services[i].name, name)) {
 			struct sockaddr_un addr = { 0 };
 			addr.sun_family = AF_UNIX;
-			strncpy(addr.sun_path, notifypath, sizeof addr.sun_path - 1);
-			strcat(addr.sun_path, name);
+
+			sprn(addr.sun_path, addr.sun_path + sizeof addr.sun_path,
+			    "%s/%s", notifypath, name);
 
 			if (sendto(controlsock, notifybuf, strlen(notifybuf),
 			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr) < 0) {
