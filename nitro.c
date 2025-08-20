@@ -1104,7 +1104,8 @@ rescan(int first)
 
 	for (i = 0; i < max_service; i++)
 		if (!services[i].seen) {
-			process_step(i, EVNT_WANT_DOWN);
+			if (!strchr(services[i].name, '@'))
+				process_step(i, EVNT_WANT_DOWN);
 			if (services[i].state == PROC_DOWN)
 				proc_zap(i);
 		}
