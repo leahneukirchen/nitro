@@ -173,25 +173,6 @@ safe_write(int fd, const char *buf, size_t len)
 }
 
 static char *
-stecpe(char *dst, const char *end, const char *src, const char *srcend)
-{
-	if (dst >= end)
-		return dst;
-
-	ptrdiff_t l = end - dst - 1;
-	size_t t = 1;
-	if (srcend - src < l) {
-		l = srcend - src;
-		t = 0;
-	}
-
-	memcpy(dst, src, l);
-	dst[l] = 0;
-
-	return dst + l + t;
-}
-
-static char *
 stecpy(char *dst, char *end, const char *src)
 {
 	if (dst >= end)
@@ -213,8 +194,8 @@ steprl(char *dst, char *end, long n)
 		return end;
 
 	char buf[24];
-	char *bufend = buf + sizeof buf;
-	char *s = bufend;
+	char *s = buf + sizeof buf;
+	*--s = 0;
 
 	unsigned long u = n < 0 ? -n : n;
 
@@ -226,7 +207,7 @@ steprl(char *dst, char *end, long n)
 	if (n < 0)
 		*--s = '-';
 
-	return stecpe(dst, end, s, bufend);
+	return stecpy(dst, end, s);
 }
 
 size_t
