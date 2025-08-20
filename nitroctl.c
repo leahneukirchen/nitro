@@ -92,7 +92,8 @@ notifysock(const char *service)
 		return;
 
 	static char default_sock[] = "/run/nitro/nitro.sock";
-	char *path = strdup(sockpath);
+	char *sockpath2 = strdup(sockpath);
+	char *path = sockpath2;
 	if (!path || !*path)
 		path = default_sock;
 	path = dirname(path);
@@ -122,6 +123,8 @@ again:
 		fprintf(stderr, "nitroctl: could not connect to '%s', is nitro started?\n", sockpath);
 		exit(111);
 	}
+
+	free(sockpath2);
 }
 
 int
