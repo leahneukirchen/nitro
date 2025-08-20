@@ -272,10 +272,17 @@ prn(int fd, const char *fmt, ...)
 	return safe_write(fd, buf, out - buf);
 }
 
+static int
+exec1(const char *cmd, const char *arg)
+{
+	char *const argv[3] = { (char *)cmd, (char *)arg, 0 };
+	return execve(cmd, argv, child_environ);
+}
+
 int
 panic()
 {
-	execle("SYS/fatal", "SYS/fatal", (char *)0, child_environ);
+	exec1("SYS/fatal", 0);
 	exit(111);
 }
 
@@ -393,10 +400,7 @@ proc_launch(int i)
 			// else keep fd 1 to /dev/console
 		}
 
-		if (instance)
-			execle("run", "run", instance, (char *)0, child_environ);
-		else
-			execle("run", "run", (char *)0, child_environ);
+		exec1("run", instance);
 
 		status = (errno == ENOENT ? 127 : 126);
 		write(alivepipefd[1], &status, 1);
@@ -472,10 +476,7 @@ proc_setup(int i)
 			dup2(globallog[1], 1);
 		// else keep fd 1 to /dev/console
 
-		if (instance)
-			execle("setup", "setup", instance, (char *)0, child_environ);
-		else
-			execle("setup", "setup", (char *)0, child_environ);
+		exec1("setup", instance);
 		_exit(127);
 	} else if (child < 0) {
 		/* fork failed, delay */
@@ -546,10 +547,8 @@ proc_finish(int i)
 				instance = (char *)"shutdown";
 		}
 
-		if (instance)
-			execle("finish", "finish", run_status, run_signal, instance, (char *)0, child_environ);
-		else
-			execle("finish", "finish", run_status, run_signal, (char *)0, child_environ);
+		char *const args[4] = { (char *)"finish", run_status, run_signal, instance };
+		execve(args[0], args, child_environ);
 		_exit(127);
 	} else if (child < 0) {
 		/* fork failed, skip over the finish script */
@@ -1805,7 +1804,7 @@ main(int argc, char *argv[])
 	close(controlsock);
 	unlink(control_socket_path);
 
-	execle("SYS/reincarnate", "SYS/reincarnate", (char *)0, child_environ);
+	exec1("SYS/reincarnate", 0);
 	if (errno != ENOENT)
 		prn(2, "- nitro: SYS/reincarnate failed to exec: errno=%d\n", errno);
 
@@ -1817,9 +1816,7 @@ main(int argc, char *argv[])
 			if (child < 0) {
 				prn(2, "- nitro: SYS/final failed to exec: errno=%d\n", errno);
 			} else if (child == 0) {
-				execle("SYS/final", "final",
-				    want_reboot ? "reboot" : "shutdown",
-				    (char *)0, child_environ);
+				exec1("SYS/final", want_reboot ? "reboot" : "shutdown");
 				_exit(127);
 			} else {
 				int wstatus = 0;
@@ -1860,7 +1857,7 @@ main(int argc, char *argv[])
 
 	if (want_reboot) {
 		prn(2, "- nitro: re-execing\n");
-		execvp(argv[0], argv);
+		execv(argv[0], argv);
 		fatal("could not re-exec '%s': errno=%d\n", argv[0], errno);
 	}
 
