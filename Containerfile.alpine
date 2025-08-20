@@ -9,7 +9,7 @@ COPY nitro.c .
 COPY nitroctl.c .
 COPY Makefile .
 
-RUN make CFLAGS="-Os -Wl,--gc-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fno-stack-clash-protection" LDFLAGS="-static"
+RUN make tiny
 
 VOLUME /out
 

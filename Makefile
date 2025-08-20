@@ -7,6 +7,10 @@ all: $(ALL)
 debug: CFLAGS+=-g -Og -DDEBUG
 debug: $(ALL)
 
+tiny: CFLAGS=-Os -Wl,--gc-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fno-stack-clash-protection
+tiny: LDFLAGS=-static
+tiny: $(ALL)
+
 clean: FRC
 	rm -f $(ALL)
 
