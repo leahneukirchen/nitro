@@ -1,10 +1,10 @@
-# nitro, a tiny but flexible init system and process supervisior
+# nitro, a tiny but flexible init system and process supervisor
 
 ## Overview
 
 Nitro is a tiny process supervisor that also can be used as pid 1 on Linux.
 
-There are three main applications it is designed for:
+There are four main applications it is designed for:
 - As init for a Linux machine for embedded, desktop or server purposes
 - As init for a Linux initramfs
 - As init for a Linux container (Docker/Podman/LXC/Kubernetes)
