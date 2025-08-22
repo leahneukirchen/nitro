@@ -1310,7 +1310,7 @@ handle_control_sock() {
 		deadline now = time_now();
 
 		for (int i = 0; i < max_service; i++) {
-			reply += sprn(reply, replyend, "%s %d %d %d %d\n",
+			reply += sprn(reply, replyend, "%s,%d,%d,%d,%d\n",
 			    services[i].name,
 			    services[i].state,
 			    services[i].pid,

@@ -223,7 +223,7 @@ send_and_print(char cmd, const char *service)
 	char name[64];
 	long pid, state, wstatus, uptime;
 	int len;
-	while (sscanf(s,  "%63[^ #/] %ld %ld %ld %ld\n%n",
+	while (sscanf(s,  "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
 	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
 		s += len;
 
