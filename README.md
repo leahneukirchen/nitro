@@ -6,6 +6,7 @@ Nitro is a tiny process supervisor that also can be used as pid 1 on Linux.
 
 There are three main applications it is designed for:
 - As init for a Linux machine for embedded, desktop or server purposes
+- As init for a Linux initramfs
 - As init for a Linux container (Docker/Podman/LXC/Kubernetes)
 - As unprivileged supervision daemon on POSIX systems
 
