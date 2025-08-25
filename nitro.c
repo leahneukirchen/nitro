@@ -1047,7 +1047,7 @@ refresh_log:
 }
 
 void
-rescan(int first)
+rescan()
 {
 	int i;
 	for (i = 0; i < max_service; i++)
@@ -1072,18 +1072,19 @@ rescan(int first)
 		if (name[strlen(name) - 1] == '@')
 			continue;
 
-		int i = add_service(name);
-		if (i < 0)
-			continue;
+		int i = find_service(name);
+		if (i < 0) {
+			i = add_service(name);
+			if (i < 0)
+				continue;
+
+			if (stat_slash(name, "down", &st) == 0) {
+				services[i].state = PROC_DOWN;
+				services[i].timeout = 0;
+			}
+		}
 
 		services[i].seen = 1;
-
-		if (first && stat_slash(name, "down", &st) == 0 &&
-		    !(services[i].state == PROC_UP ||
-		    services[i].state == PROC_STARTING)) {
-			services[i].state = PROC_DOWN;
-			services[i].timeout = 0;
-		}
 	}
 
 	for (i = 0; i < max_service; i++) {
@@ -1459,7 +1460,7 @@ has_died(pid_t pid, int status)
 				prn(2, "- nitro: SYS/setup finished with status %d\n", status);
 
 				// bring up rest of the services
-				rescan(1);
+				rescan();
 				return;
 			}
 
@@ -1695,7 +1696,7 @@ main(int argc, char *argv[])
 			int l = add_service("LOG");
 			process_step(l, EVNT_WANT_UP);
 		}
-		rescan(1);
+		rescan();
 	}
 
 	struct pollfd fds[2];
@@ -1769,7 +1770,7 @@ main(int argc, char *argv[])
 		}
 
 		if (want_rescan) {
-			rescan(0);
+			rescan();
 			want_rescan = 0;
 		}
 
