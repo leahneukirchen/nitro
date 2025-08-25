@@ -268,7 +268,8 @@ normalize(char *service)
 #define OUR_UTMP "/run/utmp"
 #endif
 
-void write_wtmp(int boot) {
+void write_wtmp(int boot)
+{
 	int fd;
 
 	if ((fd = open(OUR_WTMP, O_WRONLY | O_APPEND)) < 0)

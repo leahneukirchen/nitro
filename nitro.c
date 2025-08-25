@@ -58,7 +58,8 @@ char *envbuf[ENVSIZE+1];
 
 typedef int64_t deadline;               /* milliseconds since boot */
 
-deadline time_now()
+deadline
+time_now()
 {
 	struct timespec now;
 
@@ -66,7 +67,7 @@ deadline time_now()
 	   are measuring delays */
 #if defined(CLOCK_UPTIME)
 	clock_gettime(CLOCK_UPTIME, &now);
-#elif defined (CLOCK_UPTIME_RAW)
+#elif defined(CLOCK_UPTIME_RAW)
 	clock_gettime(CLOCK_UPTIME_RAW, &now);
 #else
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -1119,7 +1120,8 @@ own_console()
 }
 
 void
-do_stop_services() {
+do_stop_services()
+{
 	global_state = GLBL_SHUTDOWN;
 
 	int up = 0;
@@ -1174,7 +1176,8 @@ do_shutdown()
 }
 
 void
-open_control_socket() {
+open_control_socket()
+{
 #ifdef __linux__
 	static const char default_sock[] = "/run/nitro/nitro.sock";
 #else
@@ -1276,7 +1279,8 @@ notify(int i)
 }
 
 void
-handle_control_sock() {
+handle_control_sock()
+{
 	char buf[256];
 	struct sockaddr_un src;
 	socklen_t srclen = sizeof src;
