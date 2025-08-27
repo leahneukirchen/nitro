@@ -966,7 +966,9 @@ add_service(const char *name)
 			goto refresh_log;
 
 	struct stat st;
-	if (stat_slash_to_at(name, "run", &st) != 0 &&
+	if (strcmp(name, "SYS") != 0 &&
+	    strcmp(name, ".SHUTDOWN") != 0 &&
+	    stat_slash_to_at(name, "run", &st) != 0 &&
 	    stat_slash_to_at(name, "setup", &st) != 0) {
 		prn(2, "- nitro: no such service: %s\n", name);
 		return -1;
