@@ -91,6 +91,12 @@ notifysock(const char *service)
 	if (*notifypath)
 		return;
 
+	connfd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (connfd < 0) {
+		perror("socket");
+		exit(111);
+	}
+
 	static char default_sock[] = "/run/nitro/nitro.sock";
 	char *sockpath2 = strdup(sockpath);
 	char *path = sockpath2;
@@ -311,6 +317,12 @@ suffix(const char *str, const char *suff)
 }
 #endif
 
+static int
+max(int a, int b)
+{
+	return a > b ? a : b;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -407,12 +419,6 @@ init_usage:
 	if (!sockpath || !*sockpath)
 		sockpath = default_sock;
 
-	connfd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-	if (connfd < 0) {
-		perror("socket");
-		exit(111);
-	}
-
 	if (streq1(cmd, "list"))
 		return send_and_print('l', "");
 	else if (streq(cmd, "info"))
@@ -441,26 +447,36 @@ init_usage:
 			if (send_and_print(cmd[0], argv[i]) != 0)
 				err = 1;
 		return err;
-	} else if (argc == 2) {
-		char *service = normalize(argv[1]);
-		if (streq(cmd, "start"))
-			return send_and_wait('u', service, 0);
-		else if (streq(cmd, "fast-start"))
-			return send_and_wait('u', service, 1);
-		else if (streq(cmd, "stop"))
-			return send_and_wait('d', service, 0);
-		else if (streq(cmd, "fast-stop"))
-			return send_and_wait('d', service, 1);
-		else if (streq(cmd, "restart"))
-			return send_and_wait('r', service, 0);
-		else if (streq(cmd, "fast-restart") || streq(cmd, "r"))
-			return send_and_wait('r', service, 1);
-		else if (streq(cmd, "check"))
-			return send_and_wait('?', service, 0);
-		else if (streq(cmd, "pidof"))
-			return send_and_wait('?', service, 1);
-		else
-			goto usage;
+	} else if (argc > 1) {
+		int err = 0;
+		for (int i = 1; i < argc; i++) {
+			if (i > 1) {
+				unlink(notifypath);
+				notifypath[0] = 0;
+				close(connfd);
+			}
+
+			char *service = normalize(argv[i]);
+			if (streq(cmd, "start"))
+				err = max(err, send_and_wait('u', service, 0));
+			else if (streq(cmd, "fast-start"))
+				err = max(err, send_and_wait('u', service, 1));
+			else if (streq(cmd, "stop"))
+				err = max(err, send_and_wait('d', service, 0));
+			else if (streq(cmd, "fast-stop"))
+				err = max(err, send_and_wait('d', service, 1));
+			else if (streq(cmd, "restart"))
+				err = max(err, send_and_wait('r', service, 0));
+			else if (streq(cmd, "fast-restart") || streq(cmd, "r"))
+				err = max(err, send_and_wait('r', service, 1));
+			else if (streq(cmd, "check"))
+				err = max(err, send_and_wait('?', service, 0));
+			else if (streq(cmd, "pidof"))
+				err = max(err, send_and_wait('?', service, 1));
+			else
+				goto usage;
+		}
+		return err;
 	}
 
 usage:
