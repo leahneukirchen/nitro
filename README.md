@@ -186,6 +186,11 @@ FreeBSD `init`:
 
 	/etc/nitro "/usr/local/sbin/nitro" "" on
 
+## Periodic jobs
+
+Instead of cron, you can use snooze to run jobs periodically from a
+supervisor: https://git.vuxu.org/snooze/about/
+
 ## Authors
 
 Leah Neukirchen <leah@vuxu.org>
