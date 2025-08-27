@@ -1,4 +1,4 @@
-.Dd August 3, 2025
+.Dd August 27, 2025
 .Dt NITROCTL 1
 .Os
 .Sh NAME
@@ -13,45 +13,61 @@
 .Nm
 supports the following commands:
 .Pp
-.Bl -tag -width 8n -compact
+.Bl -tag -width 15n -compact
 .It Cm list
 List all services and information about them (default).
 .It Cm scan , Cm rescan
 Rescan the service list from the file system.
-.It Cm up
+.It Cm up , Cm u
 Request
 .Ar services
 to be up.
-.It Cm down
+.It Cm down , Cm d
 Request
 .Ar services
 to be down.
 .It Cm start
 Request
-.Ar service
+.Ar services
 to be up and wait for it to enter
 .Dv UP .
 .It Cm stop
 Request
-.Ar service
+.Ar services
 to be down and wait for it to enter
 .Dv DOWN .
 .It Cm restart
 Request
-.Ar service
+.Ar services
 to be restarted and wait for it to be
 .Dv UP
 again.
+.It Cm fast-start
+Request
+.Ar services
+to be started and wait for it to be in state
+.Dv STARTING .
+.It Cm fast-stop
+Request
+.Ar services
+to be down and wait for it to be in state
+.Dv SHUTDOWN .
+.It Cm fast-restart , Cm r
+Request
+.Ar services
+to be restarted and wait for it to be in state
+.Dv RESTART .
 .It Cm pause , Cm cont , Cm hup , Cm alarm , Cm interrupt , Cm quit , Cm term , Cm kill , Cm 1 , Cm 2
 Send the signal to
 .Ar services .
+The first character can be used as a shortcut.
 .It Cm pidof
-Print PID of the
-.Ar service .
+Print PIDs of the
+.Ar services .
 .It Cm check
 Exit with status 0 if the
-.Ar service
-is running.
+.Ar services
+are running.
 .It Cm Reboot
 Request system reboot.
 .It Cm Shutdown
