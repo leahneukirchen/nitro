@@ -424,7 +424,6 @@ init_usage:
 	else if (streq(cmd, "Shutdown"))
 		return send_and_print('S', "");
 	else if (argc > 1 && (
-	    streq1(cmd, "list") ||
 	    streq1(cmd, "down") ||
 	    streq1(cmd, "up") ||
 	    streq1(cmd, "pause") ||
