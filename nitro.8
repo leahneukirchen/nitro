@@ -1,4 +1,4 @@
-.Dd August 3, 2025
+.Dd August 27, 2025
 .Dt NITRO 8
 .Os
 .Sh NAME
@@ -15,6 +15,18 @@ Every directory inside
 .Ar dir
 .Pq by default: Pa /etc/nitro
 defines a service.
+.Pp
+When used as init, and the argument
+.Ar dir
+is
+.Sq S
+or
+.Sq single ,
+.Nm
+looks at the directory
+.Pa /etc/nitro.single
+instead.
+This can be used to boot into a special single-user mode.
 .Sh SERVICE DIRECTORIES
 Service directories must have a name shorter than 64 characters and
 must not contain
