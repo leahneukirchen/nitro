@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nitro is a tiny process supervisor that also can be used as pid 1 on Linux.
+nitro is a tiny process supervisor that also can be used as pid 1 on Linux.
 
 There are four main applications it is designed for:
 - As init for a Linux machine for embedded, desktop or server purposes
@@ -10,7 +10,7 @@ There are four main applications it is designed for:
 - As init for a Linux container (Docker/Podman/LXC/Kubernetes)
 - As unprivileged supervision daemon on POSIX systems
 
-Nitro is configured by a directory of scripts, defaulting to
+nitro is configured by a directory of scripts, defaulting to
 `/etc/nitro` (or the first command line argument).
 
 ## Requirements
@@ -156,17 +156,17 @@ reboot can also be triggered by sending `SIGINT` to nitro.
 shutdown can also be triggered by sending `SIGTERM` to nitro, unless
 nitro is used as Linux pid 1.
 
-## Nitro as `init` for Linux
+## nitro as `init` for Linux
 
-Nitro is self-contained and can be booted directly as pid 1.
+nitro is self-contained and can be booted directly as pid 1.
 It will mount `/dev` and `/run` when required, everything else
 should be done with `SYS/setup`.
 
 When receiving Ctrl-Alt-Delete, nitro triggers an orderly reboot.
 
-## Nitro as init for a Docker container
+## nitro as init for a Docker container
 
-Nitro is compiled statically, so you can copy it into your container easily:
+nitro is compiled statically, so you can copy it into your container easily:
 
 	COPY ./nitro /bin/
 	COPY ./nitroctl /bin/
@@ -179,7 +179,7 @@ You can put the control socket onto a bind mount and remote control
 `nitro` using `nitroctl` from the outside by pointing `NITRO_SOCK` to
 the appropriate target.
 
-## Nitro on FreeBSD
+## nitro on FreeBSD
 
 You can add this line to `/etc/ttys` to run `nitro` supervised by
 FreeBSD `init`:
