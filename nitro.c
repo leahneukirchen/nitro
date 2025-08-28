@@ -1652,7 +1652,7 @@ main(int argc, char *argv[])
 	const char *dir = "/etc/nitro";
 	if (argc == 2)
 		dir = argv[1];
-	if (real_pid1 && strcmp(dir, "S") == 0 || strcmp(dir, "single") == 0)
+	if (real_pid1 && (strcmp(dir, "S") == 0 || strcmp(dir, "single") == 0))
 		dir = "/etc/nitro.single";
 
 	if (chdir(dir) < 0)
