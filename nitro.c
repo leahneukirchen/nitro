@@ -1373,7 +1373,8 @@ handle_control_sock()
 		if (!buf[1])
 			goto fail;
 		int i = find_service(buf + 1);
-		if (valid_service_name(buf + 1) &&
+		if (i < 0 &&
+		    valid_service_name(buf + 1) &&
 		    stat_slash_to_at(buf + 1, ".", &st) == 0)
 			i = add_service(buf + 1);
 		if (i < 0)
