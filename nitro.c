@@ -1716,20 +1716,17 @@ main(int argc, char *argv[])
 		int timeout = -1;
 
 		for (i = 0; i < max_service; i++) {
+again:
 			if (services[i].timeout <= 0)
 				continue;
 
 			if (services[i].deadline == 0)
 				services[i].deadline = now + services[i].timeout;
 
-			if (services[i].deadline <= now)
+			if (services[i].deadline <= now) {
 				process_step(i, EVNT_TIMEOUT);
-
-			if (services[i].timeout <= 0)
-				continue;
-
-			if (services[i].deadline == 0)
-				services[i].deadline = now + services[i].timeout;
+				goto again;
+			}
 
 			int64_t wait_for = services[i].deadline - now;
 			if (wait_for > 0) {
