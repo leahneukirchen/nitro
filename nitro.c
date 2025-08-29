@@ -119,6 +119,7 @@ struct service {
 	int wstatus;
 	int log_out[2];         /* process writes to log_out[1] */
 	int log_in[2];          /* process reads from log_in[0] */
+	int readypipe;          /* process writes to readypipe when ready */
 #ifdef DEBUG
 	enum process_state state;
 #else
@@ -126,6 +127,9 @@ struct service {
 #endif
 	char seen;
 } services[MAXSV];
+
+#define FIXFD 2
+struct pollfd fds[FIXFD + MAXSV];
 
 #define IS_LOG(i) (services[i].log_in[0] != -1)
 #define PENDING_FD (-666)
@@ -352,6 +356,36 @@ void process_step(int i, enum process_events ev);
 void notify(int);
 void slayall();
 
+int
+notification_fd(int i)
+{
+	char buf[PATH_MAX];
+	char *instance = strchr(services[i].name, '@');
+	if (instance)
+		*instance = 0;
+	sprn(buf, buf + sizeof buf, "%s%s/notification-fd",
+	    services[i].name, (instance ? "@" : ""));
+	if (instance)
+		*instance = '@';
+
+	int fd = open(buf, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+
+	char num[64];
+	int r = read(fd, num, sizeof num);
+	close(fd);
+
+	if (r <= 0)
+		return -1;
+
+	int n = 0;
+	for (int j = 0; j < r && num[j]; j++)
+		if (((unsigned int)num[j] - '0') < 10)
+			n = n*10 + (num[j] - '0');
+	return n;
+}
+
 void
 proc_launch(int i)
 {
@@ -382,6 +416,22 @@ proc_launch(int i)
 		return;
 	}
 
+	int readypipe[2];
+	int notificationfd = notification_fd(i);
+	if (notificationfd == -1) {
+		services[i].readypipe = -1;
+	} else {
+		if (pipe2(readypipe, O_NONBLOCK | O_CLOEXEC) < 0) {
+			/* pipe failed, delay */
+			prn(2, "- nitro: can't create readiness pipe: errno=%d\n", errno);
+			services[i].state = PROC_DELAY;
+			services[i].timeout = DELAY_SPAWN_ERROR;
+			services[i].deadline = 0;
+			return;
+		}
+		services[i].readypipe = readypipe[0];
+	}
+
 	pid_t child = fork();
 	if (child == 0) {
 		char *instance;
@@ -405,6 +455,9 @@ proc_launch(int i)
 				dup2(globallog[1], 1);
 			// else keep fd 1 to /dev/console
 		}
+
+		if (notificationfd != -1)
+			dup2(readypipe[1], notificationfd);
 
 		exec1("run", instance);
 
@@ -443,10 +496,13 @@ fatal:
 	if (strcmp(services[i].name, "LOG") == 0)
 		globallog[1] = -globallog[1];
 
+	if (notificationfd != -1)
+		close(readypipe[1]);
+
 	services[i].pid = child;
 	services[i].startstop = time_now();
 	services[i].state = PROC_STARTING;
-	services[i].timeout = DELAY_STARTING;
+	services[i].timeout = (notificationfd == -1) ? DELAY_STARTING : 0;
 	services[i].deadline = 0;
 
 	notify(i);
@@ -669,6 +725,11 @@ proc_cleanup(int i)
 	services[i].deadline = 0;
 	services[i].state = PROC_DOWN;
 	services[i].startstop = time_now();
+
+	if (services[i].readypipe != -1) {
+		close(services[i].readypipe);
+		services[i].readypipe = -1;
+	}
 
 	if (global_state != GLBL_UP) {
 		if (services[i].log_in[0] > 0) {
@@ -1009,6 +1070,8 @@ add_service(const char *name)
 	services[i].log_in[0] = -1;
 	services[i].log_in[1] = -1;
 
+	services[i].readypipe = -1;
+
 	if (strcmp(services[i].name, "LOG") == 0)
 		services[i].log_in[0] = PENDING_FD;
 
@@ -1291,6 +1354,36 @@ notify(int i)
 					unlinkat(dirfd(notifydir), name, 0);
 				}
 			}
+		}
+	}
+}
+
+void
+handle_ready_pipe(int j)
+{
+	char buf[256];
+
+	for (int i = 0; i < max_service; i++) {
+		if (fds[j].fd == services[i].readypipe) {
+			int r = read(fds[j].fd, buf, sizeof buf);
+			if (r == -1) {
+				if (errno != EINTR && errno != EAGAIN) {
+					dprn("read error: %d\n", errno);
+				}
+			} else if (memchr(buf, '\n', r)) {
+				if (services[i].state == PROC_STARTING) {
+					dprn("service %s is ready\n", services[i].name);
+					services[i].deadline = 0;
+					services[i].timeout = 0;
+					services[i].state = PROC_UP;
+					notify(i);
+				}
+			}
+			if (r == 0 || (fds[j].revents & POLLHUP)) {
+				close(services[i].readypipe);
+				services[i].readypipe = -1;
+			}
+			break;
 		}
 	}
 }
@@ -1751,7 +1844,6 @@ main(int argc, char *argv[])
 		rescan();
 	}
 
-	struct pollfd fds[2];
 	fds[CHLD].fd = selfpipe[0];
 	fds[CHLD].events = POLLIN;
 	fds[CTRL].fd = controlsock;
@@ -1761,9 +1853,16 @@ main(int argc, char *argv[])
 		deadline now = time_now();
 
 		int timeout = -1;
+		int max_fd = FIXFD;
 
 		for (i = 0; i < max_service; i++) {
 again:
+			if (services[i].readypipe != -1) {
+				fds[max_fd].fd = services[i].readypipe;
+				fds[max_fd].events = POLLIN;
+				max_fd++;
+			}
+
 			if (services[i].timeout <= 0)
 				continue;
 
@@ -1785,11 +1884,11 @@ again:
 		if (global_state == GLBL_FINAL)
 			break;
 
-		dprn("poll(timeout=%d) %d\n", timeout, global_state);
+		dprn("poll(timeout=%d,max_fd=%d) %d\n", timeout, max_fd, global_state);
 
 		int r = 0;
 		do {
-			r = poll(fds, sizeof fds / sizeof fds[0], timeout);
+			r = poll(fds, max_fd, timeout);
 		} while (r == -1 && errno == EINTR);
 
 		if (fds[CHLD].revents & POLLIN) {
@@ -1816,6 +1915,11 @@ again:
 
 		if (fds[CTRL].revents & POLLIN) {
 			handle_control_sock();
+		}
+
+		for (int j = FIXFD; j < max_fd; j++) {
+			if (fds[j].revents)
+				handle_ready_pipe(j);
 		}
 
 		if (want_rescan) {
