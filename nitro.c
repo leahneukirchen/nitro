@@ -563,6 +563,8 @@ proc_finish(int i)
 	services[i].finishpid = child;
 	services[i].timeout = TIMEOUT_FINISH;
 	services[i].deadline = 0;
+
+	notify(i);
 }
 
 int
