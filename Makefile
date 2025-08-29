@@ -25,3 +25,14 @@ sign:
 	sed -i '1cuntrusted comment: verify with nitro.pub' nitro-$$VERSION.tar.gz.sig
 
 FRC:
+
+TESTCASES != printf '%s\n' t/[0-9]*.rb | sed 's/rb$$/FRC/'
+.SUFFIXES: .rb .FRC
+
+check: t.out $(TESTCASES)
+
+t.out:
+	mkdir -p t.out
+
+.rb.FRC:
+	@ruby $< > t.out/$$(basename $< .rb).out 2>&1 && echo "ok $<" || { echo "not ok $<"; exit 1; }
