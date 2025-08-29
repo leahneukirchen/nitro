@@ -495,6 +495,8 @@ proc_setup(int i)
 	services[i].state = PROC_SETUP;
 	services[i].timeout = 0;
 	services[i].deadline = 0;
+
+	notify(i);
 }
 
 void
