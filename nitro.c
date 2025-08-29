@@ -593,7 +593,7 @@ downsig(int i)
 	if (instance)
 		*instance = '@';
 
-	int fd = open(buf, O_RDONLY);
+	int fd = open(buf, O_RDONLY | O_CLOEXEC);
 	if (fd < 0)
 		return SIGTERM;
 
