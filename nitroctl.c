@@ -334,11 +334,10 @@ main(int argc, char *argv[])
 			execvp("nitro", argv);
 			dprintf(2, "nitroctl: exec init failed: %s\n", strerror(errno));
 
-			if (argc == 2)
-				chdir(argv[1]);
-			else
-				chdir("/etc/nitro");
+			if (chdir(argc == 2 ? argv[1] : "/etc/nitro") < 0)
+				dprintf(2, "nitroctl: chdir failed: %s\n", strerror(errno));
 			execl("SYS/fatal", "SYS/fatal", (char *)0);
+			dprintf(2, "nitroctl: exec SYS/fatal failed: %s\n", strerror(errno));
 			exit(111);
 		}
 
