@@ -297,13 +297,13 @@ void write_wtmp(int boot)
 	if (uname(&uname_buf) == 0)
 		strncpy(utmp.ut_host, uname_buf.release, sizeof utmp.ut_host);
 
-	write(fd, (char *)&utmp, sizeof utmp);
+	(void)! write(fd, (char *)&utmp, sizeof utmp);
 	close(fd);
 
 	if (boot) {
 		if ((fd = open(OUR_UTMP, O_WRONLY | O_APPEND)) < 0)
 			return;
-		write(fd, (char *)&utmp, sizeof utmp);
+		(void)! write(fd, (char *)&utmp, sizeof utmp);
 		close(fd);
 	}
 }

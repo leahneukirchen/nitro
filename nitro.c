@@ -404,7 +404,7 @@ proc_launch(int i)
 		exec1("run", instance);
 
 		status = (errno == ENOENT ? 127 : 126);
-		write(alivepipefd[1], &status, 1);
+		(void)! write(alivepipefd[1], &status, 1);
 		_exit(status);
 	} else if (child < 0) {
 		/* fork failed, delay */
@@ -602,7 +602,7 @@ downsig(int i)
 		return SIGTERM;
 
 	char c = 't';
-	read(fd, &c, 1);
+	(void)! read(fd, &c, 1);
 	close(fd);
 
 	return charsig(c) ? charsig(c) : SIGTERM;
