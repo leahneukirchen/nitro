@@ -4,7 +4,7 @@ ALL=nitro nitroctl
 
 all: $(ALL)
 
-debug: CFLAGS+=-g -Og -DDEBUG
+debug: CFLAGS+=-g -Og -DDEBUG -D_FORTIFY_SOURCE=2
 debug: $(ALL)
 
 tiny: CFLAGS=-Os -Wl,--gc-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fno-stack-clash-protection
