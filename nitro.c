@@ -315,20 +315,20 @@ stat_slash_to_at(const char *dir, const char *name, struct stat *st)
 	return stat(buf, st);
 }
 
-static char *
-chdir_at(char *dir)
+static int
+chdir_at(char *dir, char **instance)
 {
-	char *instance = strchr(dir, '@');
+	*instance = strchr(dir, '@');
 	char s = 0;
-	if (instance) {
-		instance++;
-		s = *instance;
-		*instance = 0;
+	if (*instance) {
+		(*instance)++;
+		s = **instance;
+		**instance = 0;
 	}
-	chdir(dir);
-	if (instance)
-		*instance = s;
-	return instance;
+	int r = chdir(dir);
+	if (*instance)
+		**instance = s;
+	return r;
 }
 
 int
@@ -381,7 +381,9 @@ proc_launch(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = chdir_at(services[i].name);
+		char *instance;
+		if (chdir_at(services[i].name, &instance) < 0)
+			_exit(127);
 
 		setsid();
 
@@ -459,7 +461,9 @@ proc_setup(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = chdir_at(services[i].name);
+		char *instance;
+		if (chdir_at(services[i].name, &instance) < 0)
+			_exit(111);
 
 		setsid();
 
@@ -478,10 +482,11 @@ proc_setup(int i)
 		// else keep fd 1 to /dev/console
 
 		exec1("setup", instance);
-		_exit(127);
+		_exit(111);
 	} else if (child < 0) {
 		/* fork failed, delay */
-		prn(2, "- nitro: can't fork %s/%s: errno=%d\n", services[i].name, "setup", errno);
+		prn(2, "- nitro: can't fork %s/%s: errno=%d\n",
+		    services[i].name, "setup", errno);
 		services[i].state = PROC_DELAY;
 		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
@@ -532,7 +537,9 @@ proc_finish(int i)
 
 	pid_t child = fork();
 	if (child == 0) {
-		char *instance = chdir_at(services[i].name);
+		char *instance;
+		if (chdir_at(services[i].name, &instance) < 0)
+			_exit(127);
 
 		dup2(nullfd, 0);
 		if (services[i].log_out[1] != -1)
