@@ -31,6 +31,13 @@ def with_fixture(hash, &block)
       mode = 0755
       k = k.chomp("!")
     end
+
+    if k.end_with? "="
+      k = k.chomp("=")
+      FileUtils.mkdir_p(File.join(tmpdir, File.dirname(k)))
+      File.symlink(v, File.join(tmpdir, k))
+      next
+    end
     
     FileUtils.mkdir_p(File.join(tmpdir, File.dirname(k)))
     File.open(File.join(tmpdir, k), 'w', mode) { |f|
