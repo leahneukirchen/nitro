@@ -110,7 +110,7 @@ def testcase(svdir, timeout=10, &block)
     begin
       block.call(queue)
     rescue
-      p "ERROR in block: ", $!
+      puts "ERROR in block: #{$!.full_message}"
       exit 1
     end
   }
