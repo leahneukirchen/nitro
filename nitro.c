@@ -1063,9 +1063,9 @@ void
 rescan()
 {
 	int i;
+
 	for (i = 0; i < max_service; i++)
-		if (!strchr(services[i].name, '@'))
-			services[i].seen = 0;
+		services[i].seen = 0;
 
 	struct dirent *ent;
 	rewinddir(cwd);
@@ -1081,11 +1081,19 @@ rescan()
 		if (!S_ISDIR(st.st_mode))
 			continue;
 
-		// ignore parametrized services
-		if (name[strlen(name) - 1] == '@')
-			continue;
+		if (name[strlen(name) - 1] == '@') {
+			// mark parametrized services seen
+			size_t prefixlen = strlen(name);
+			for (i = 0; i < max_service; i++)
+				if (strncmp(name, services[i].name, prefixlen) == 0 &&
+				    services[i].state != PROC_DOWN) {
+					services[i].seen = 1;
+				}
 
-		int i = find_service(name);
+			continue;
+		}
+
+		i = find_service(name);
 		if (i < 0) {
 			i = add_service(name);
 			if (i < 0)
@@ -1112,8 +1120,7 @@ rescan()
 				}
 		}
 		if (!services[i].seen) {
-			if (!strchr(services[i].name, '@'))
-				process_step(i, EVNT_WANT_DOWN);
+			process_step(i, EVNT_WANT_DOWN);
 			if (services[i].state == PROC_DOWN)
 				proc_zap(i);
 		}
@@ -1391,6 +1398,7 @@ handle_control_sock()
 			i = add_service(buf + 1);
 		if (i < 0)
 			goto fail;
+		services[i].seen = 1;
 
 		if (buf[0] == 'u')
 			process_step(i, EVNT_WANT_UP);
