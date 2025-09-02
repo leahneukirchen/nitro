@@ -1100,7 +1100,8 @@ rescan()
 		services[i].seen = 1;
 	}
 
-	for (i = 0; i < max_service; i++) {
+	// iterate backwards so we can zap
+	for (i = max_service - 1; i >= 0; i--) {
 		if (IS_LOG(i) && services[i].state == PROC_DOWN &&
 		    strchr(services[i].name, '@')) {
 			services[i].seen = 0;
