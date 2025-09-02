@@ -363,6 +363,8 @@ proc_launch(int i)
 		services[i].state = PROC_ONESHOT;
 		services[i].timeout = 0;
 		services[i].deadline = 0;
+		if (stat_slash_to_at(services[i].name, ".", &st) < 0 && errno == ENOENT)
+			goto fatal;
 		notify(i);
 
 		return;
@@ -423,7 +425,7 @@ proc_launch(int i)
 	if (read(alivepipefd[0], &status, 1) == 1) {
 		dprn("exec failed with status %d\n", status);
 		close(alivepipefd[0]);
-
+fatal:
 		services[i].state = PROC_FATAL;
 		services[i].wstatus = -1;
 		services[i].pid = 0;
