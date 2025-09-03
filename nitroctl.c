@@ -257,7 +257,7 @@ normalize(char *service)
 
 	char *buf = realpath(service, 0);
 	if (!buf) {
-		fprintf(stderr, "nitroctl: no such service: %s: %m\n", service);
+		fprintf(stderr, "nitroctl: no such service: %s: %s\n", service, strerror(errno));
 		exit(1);
 	}
 
