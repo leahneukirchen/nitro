@@ -81,17 +81,21 @@ You may find runit's `chpst` useful when writing `run` scripts.
 
 ## Parametrized services
 
-Service directories ending in `@` are ignored, however you can refer
-to parametrized services by symlinks (either in the service directory
-or as a `log` symlink), or start them manually using `nitroctl`.
+Service directories ending in `@` are considered service templates,
+and are ignored as services, however you can instantiate them into
+parametrized services by symlinks (either in the service directory or
+as a `log` symlink), or start them manually using `nitroctl`.
 
 The part after the `@`, the parameter, is passed to the scripts as
 first argument.
 
-For example, given you have a script `agetty@/run` and a symlink
+For example, if you have a script `agetty@/run` and a symlink
 `agetty@tty1` -> `agetty@`, nitro will spawn `agetty@/run tty1`.  Upon
 running `nitroctl up agetty@tty2`, nitro will spawn `agetty@/run
 tty2`, even if it does not exist in the service directory.
+
+Parametrized services are removed on `rescan` if they are DOWN and not
+referred to by other services.
 
 ## Modes of operation
 
@@ -99,7 +103,7 @@ The lifecycle of a machine/container/session using nitro consists of
 three phases.
 
 First, the system is brought up.  If there is a special service
-g`SYS`, its `setup` script is run first.  After it finishes, all
+`SYS`, its `setup` script is run first.  After it finishes, all
 services not marked `down` are brought up.
 
 When a service exits, it's being restarted, potentially waiting for
