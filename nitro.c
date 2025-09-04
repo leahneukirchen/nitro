@@ -334,6 +334,8 @@ chdir_at(char *dir, char **instance)
 int
 valid_service_name(const char *name)
 {
+	if (!name[0])
+		return 0;
 	if (name[0] == '.')
 		return 0;
 	if (strcmp(name, "SYS") == 0)
@@ -344,7 +346,10 @@ valid_service_name(const char *name)
 		if (name[i] == '/' || name[i] == ',' || name[i] == '\n')
 			return 0;
 
-	return i < 64;
+	if (name[i - 1] == '@')
+		return 0;
+
+	return i < 64;          /* length check */
 }
 
 void process_step(int i, enum process_events ev);
@@ -1075,9 +1080,6 @@ rescan()
 		char *name = ent->d_name;
 		struct stat st;
 
-		if (!valid_service_name(name))
-			continue;
-
 		if (stat(name, &st) < 0)
 			continue;
 		if (!S_ISDIR(st.st_mode))
@@ -1094,6 +1096,9 @@ rescan()
 
 			continue;
 		}
+
+		if (!valid_service_name(name))
+			continue;
 
 		i = find_service(name);
 		if (i < 0) {
