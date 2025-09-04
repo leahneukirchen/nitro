@@ -120,6 +120,25 @@ was used as a container init or unprivileged supervisor.  (When a
 reboot was requested, it re-execs itself.  This requires being called
 with absolute path for the binary and the service directory.)
 
+## Service states
+
+There are 9 possible states a service can be in:
+
+- `DOWN`: the service is not running and is not supposed to.
+- `SETUP`: the service is running the `./setup` script.
+- `STARTING`: the service is running the `./run` script, but is not
+  considered ready yet (currently, the first 2 seconds of lifetime).
+- `UP`: the service is running.
+- `ONESHOT`: it's a "one shot" service and `./setup` has finished.
+- `SHUTDOWN`: the service is being brought down, or it has exited
+  already and `./finish` is running.  It will be `DOWN` next.
+- `RESTART`: the service is being brought down, or it has exited
+  already and `./finish` is running.  It will be restarted next.
+- `FATAL`: the service is down.  An error has happened that will not
+  fix itself.  Investigate and restart the service manually.
+- `DELAY`: the service is down.  An error has happened that will
+  potentially fix itself.  The service will be restarted automatically.
+
 ## Controlling nitro with nitroctl
 
 You can remote control a running nitro instance using the tool
