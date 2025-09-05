@@ -106,7 +106,8 @@ again:
 			if (unlink(notifypath) == 0)
 				goto again;
 		}
-		perror("bind");
+		fprintf(stderr, "could not bind socket to '%s': %s\n",
+		    notifypath, strerror(errno));
 		exit(111);
 	}
 	atexit(cleanup_notify);
