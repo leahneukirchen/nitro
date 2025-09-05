@@ -27,22 +27,12 @@
 #include <utmp.h>
 #endif
 
+#include "nitro.h"
+
 int connfd;
 const char *sockpath;
 char notifypath[PATH_MAX];
 volatile sig_atomic_t got_signal;
-
-enum process_state {
-	PROC_DOWN = 1,
-	PROC_SETUP,
-	PROC_STARTING,
-	PROC_UP,
-	PROC_ONESHOT,
-	PROC_SHUTDOWN,
-	PROC_RESTART,
-	PROC_FATAL,
-	PROC_DELAY,
-};
 
 static const char *
 proc_state_str(enum process_state state)
@@ -97,7 +87,6 @@ notifysock(const char *service)
 		exit(111);
 	}
 
-	static char default_sock[] = "/run/nitro/nitro.sock";
 	char *sockpath2 = strdup(sockpath);
 	char *path = sockpath2;
 	if (!path || !*path)
@@ -409,11 +398,6 @@ init_usage:
 		        cmd = argv[0];
         }
 
-#ifdef __linux__
-	static const char default_sock[] = "/run/nitro/nitro.sock";
-#else
-	static const char default_sock[] = "/var/run/nitro/nitro.sock";
-#endif
 	sockpath = getenv("NITRO_SOCK");
 	if (!sockpath || !*sockpath)
 		sockpath = default_sock;

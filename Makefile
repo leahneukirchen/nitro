@@ -4,6 +4,12 @@ ALL=nitro nitroctl
 
 all: $(ALL)
 
+nitro: nitro.c nitro.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o nitro nitro.c $(LDLIBS)
+
+nitroctl: nitroctl.c nitro.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o nitroctl nitroctl.c $(LDLIBS)
+
 debug: CFLAGS+=-g -Og -DDEBUG -D_FORTIFY_SOURCE=2
 debug: $(ALL)
 

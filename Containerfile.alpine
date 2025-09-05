@@ -5,6 +5,7 @@ RUN apk update \
 
 WORKDIR /work
 
+COPY nitro.h .
 COPY nitro.c .
 COPY nitroctl.c .
 COPY Makefile .
