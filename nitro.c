@@ -11,9 +11,12 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-#ifdef __linux__
 #include <sys/mount.h>
+#ifdef __linux__
 #include <sys/reboot.h>
+#endif
+#ifdef __NetBSD__
+#include <fs/tmpfs/tmpfs_args.h>
 #endif
 
 #include <dirent.h>
@@ -1202,11 +1205,20 @@ do_shutdown()
 void
 open_control_socket()
 {
-#ifdef __linux__
-	static const char default_sock[] = "/run/nitro/nitro.sock";
+#if defined(__linux__) || defined(__NetBSD__)
+/*
+ * NetBSD doesn't have /run nor a writable filesystem
+ * before init(8) starts, on the other hand, /var could be
+ * later mounted so we can't use /var/run at this stage,
+ * same goes for /tmp. So let's use a previously created
+ * /run dedicated to nitro.
+ */
+#define RUNDIR "/run"
 #else
-	static const char default_sock[] = "/var/run/nitro/nitro.sock";
+#define RUNDIR "/var/run"
 #endif
+	static const char default_sock[] = RUNDIR"/nitro/nitro.sock";
+
 	control_socket_path = getenv("NITRO_SOCK");
 	if (!control_socket_path || !*control_socket_path)
 		control_socket_path = default_sock;
@@ -1546,16 +1558,39 @@ mounted(const char *dir)
 
 	return rootst.st_dev != dirst.st_dev;
 }
+#endif
 
 void
 init_mount()
 {
+#ifdef __linux__
 	if (access("/dev/null", F_OK) < 0 && !mounted("/dev"))
 		mount("dev", "/dev", "devtmpfs", MS_NOSUID, "mode=0755");
 	if (!mounted("/run"))
 		mount("run", "/run", "tmpfs", MS_NOSUID|MS_NODEV, "mode=0755");
-}
 #endif
+#ifdef __NetBSD__
+	struct tmpfs_args args;
+	/* 32MB should be enough for everyone */
+	size_t fs_size = 32 * 1024 * 1024;
+	struct stat st;
+
+	if (stat(RUNDIR, &st) == -1)
+		_exit(-1);
+
+	memset(&args, 0, sizeof(args));
+
+	args.ta_version = TMPFS_ARGS_VERSION;
+	args.ta_size_max = fs_size;
+	args.ta_root_uid = st.st_uid;
+	args.ta_root_gid = st.st_gid;
+	args.ta_root_mode = st.st_mode;
+
+	if (mount(MOUNT_TMPFS, RUNDIR, MNT_NOSUID|MNT_NODEV,
+	    &args, sizeof args) == -1)
+		_exit(-1);
+#endif
+}
 
 void
 killall()
@@ -1610,8 +1645,8 @@ main(int argc, char *argv[])
 	pid1 = real_pid1 = (getpid() == 1);
 	if (pid1) {
 		umask(0022);
-#ifdef __linux__
 		init_mount();
+#ifdef __linux__
 		if (reboot(RB_DISABLE_CAD) < 0)
 			real_pid1 = 0;  /* we are in a container */
 #endif
