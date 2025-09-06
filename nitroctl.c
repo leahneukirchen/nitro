@@ -399,9 +399,7 @@ init_usage:
 		        cmd = argv[0];
         }
 
-	sockpath = getenv("NITRO_SOCK");
-	if (!sockpath || !*sockpath)
-		sockpath = default_sock;
+	sockpath = control_socket();
 
 	if (streq1(cmd, "list"))
 		return send_and_print('l', "");

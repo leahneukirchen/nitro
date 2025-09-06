@@ -1201,10 +1201,7 @@ do_shutdown()
 void
 open_control_socket()
 {
-	control_socket_path = getenv("NITRO_SOCK");
-	if (!control_socket_path || !*control_socket_path)
-		control_socket_path = default_sock;
-
+	control_socket_path = control_socket();
 	char *last_slash = strrchr(control_socket_path, '/');
 	if (last_slash) {
 		char dir[PATH_MAX];

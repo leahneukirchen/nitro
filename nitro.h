@@ -12,7 +12,7 @@
 #endif
 #endif
 
-static char default_sock[] = RUNDIR "/nitro/nitro.sock";
+static char default_sock[256] = RUNDIR "/nitro/nitro.sock";
 
 enum process_state {
 	PROC_DOWN = 1,
@@ -25,3 +25,18 @@ enum process_state {
 	PROC_FATAL,
 	PROC_DELAY,
 };
+
+static char *
+control_socket()
+{
+	char *path = getenv("NITRO_SOCK");
+	if (!path || !*path) {
+		ssize_t r = readlink("/etc/nitro.sock",
+		    default_sock, sizeof default_sock - 1);
+		if (r > 0 && (size_t)r <= sizeof default_sock - 1)
+			default_sock[r] = 0;
+		path = default_sock;
+	}
+
+	return path;
+}
