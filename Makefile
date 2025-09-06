@@ -4,11 +4,12 @@ ALL=nitro nitroctl
 
 all: $(ALL)
 
-nitro: nitro.c nitro.h
-	$(CC) $(CFLAGS) $(LDFLAGS) -o nitro nitro.c $(LDLIBS)
+.SUFFIXES: .c .rb .FRC
 
-nitroctl: nitroctl.c nitro.h
-	$(CC) $(CFLAGS) $(LDFLAGS) -o nitroctl nitroctl.c $(LDLIBS)
+.c:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LDLIBS)
+
+nitro nitroctl: nitro.h
 
 debug: CFLAGS+=-g -Og -DDEBUG -D_FORTIFY_SOURCE=2
 debug: $(ALL)
@@ -33,7 +34,6 @@ sign:
 FRC:
 
 TESTCASES != printf '%s\n' t/[0-9]*.rb | sed 's/rb$$/FRC/'
-.SUFFIXES: .rb .FRC
 
 check: t.out $(TESTCASES)
 
