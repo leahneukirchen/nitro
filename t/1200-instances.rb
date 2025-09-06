@@ -14,8 +14,12 @@ EOF_A
     `nitroctl up sv@two`
     events.poll_for(["UP", "sv@two"])
 
+    `nitroctl restart sv@four`
+    events.poll_for(["UP", "sv@four"])
+
     match_seq?(events, [["STARTING", "sv@one"], ["UP", "sv@one"]])
     match_seq?(events, [["STARTING", "sv@two"], ["UP", "sv@two"]])
+    match_seq?(events, [["STARTING", "sv@four"], ["UP", "sv@four"]])
 
     `nitroctl rescan`
     `nitroctl` =~ /UP sv@one/  or raise
