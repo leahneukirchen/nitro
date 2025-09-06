@@ -305,14 +305,17 @@ stat_slash(const char *dir, const char *name, struct stat *st)
 int
 stat_slash_to_at(const char *dir, const char *name, struct stat *st)
 {
-	char buf[PATH_MAX];
 	char *instance = strchr(dir, '@');
-	if (instance)
+	char t;
+	if (instance) {
+		instance++;
+		t = *instance;
 		*instance = 0;
-	sprn(buf, buf + sizeof buf, "%s%s/%s", dir, (instance ? "@" : ""), name);
+	}
+	int r = stat_slash(dir, name, st);
 	if (instance)
-		*instance = '@';
-	return stat(buf, st);
+		*instance = t;
+	return r;
 }
 
 static int
@@ -364,7 +367,7 @@ notification_fd(int i)
 	if (instance)
 		*instance = 0;
 	sprn(buf, buf + sizeof buf, "%s%s/notification-fd",
-	    services[i].name, (instance ? "@" : ""));
+	    services[i].name, ("@" + !instance));
 	if (instance)
 		*instance = '@';
 
@@ -659,7 +662,7 @@ downsig(int i)
 	if (instance)
 		*instance = 0;
 	sprn(buf, buf + sizeof buf, "%s%s/down-signal",
-	    services[i].name, (instance ? "@" : ""));
+	    services[i].name, ("@" + !instance));
 	if (instance)
 		*instance = '@';
 
