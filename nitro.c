@@ -291,7 +291,7 @@ panic()
 #ifdef DEBUG
 #define dprn(...) prn(2, __VA_ARGS__)
 #else
-#define dprn(...) /**/
+#define dprn(...) {}
 #endif
 
 int
