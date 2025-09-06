@@ -1550,9 +1550,18 @@ init_mount()
 		mount("run", "/run", "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755");
 #endif
 #ifdef __NetBSD__
+	control_socket_path = control_socket();
+
+	char *last_slash = strrchr(control_socket_path, '/');
+	if (!last_slash)
+		return;
+
+	*last_slash = 0;
+
 	struct stat st;
-	if (stat(RUNDIR, &st) < 0)
-		fatal("mountpoint missing: " RUNDIR);
+	if (stat(control_socket_path, &st) < 0)
+		fatal("mountpoint %s missing: errno=%d",
+		    control_socket_path, errno);
 
 	struct tmpfs_args args = {
 		.ta_version = TMPFS_ARGS_VERSION,
@@ -1562,9 +1571,12 @@ init_mount()
 		.ta_root_gid = st.st_gid,
 		.ta_root_mode = st.st_mode,
 	};
-	if (mount(MOUNT_TMPFS, RUNDIR, MNT_NOSUID | MNT_NODEV,
+	if (mount(MOUNT_TMPFS, control_socket_path, MNT_NOSUID | MNT_NODEV,
 	    &args, sizeof args) < 0)
-		fatal("mounting " RUNDIR " failed: errno=%d\n", errno);
+		fatal("mounting %s failed: errno=%d\n",
+		    control_socket_path, errno);
+
+	*last_slash = '/';
 #endif
 }
 
