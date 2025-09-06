@@ -11,12 +11,13 @@ all: $(ALL)
 
 nitro nitroctl: nitro.h
 
-debug: CFLAGS+=-g -Og -DDEBUG -D_FORTIFY_SOURCE=2
-debug: $(ALL)
+debug:
+	$(MAKE) all CFLAGS="$(CFLAGS) -g -Og -DDEBUG -D_FORTIFY_SOURCE=2"
 
-tiny: CFLAGS=-Os -Wl,--gc-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fno-stack-clash-protection
-tiny: LDFLAGS=-static
-tiny: $(ALL)
+tiny:
+	$(MAKE) all CFLAGS="-Os -Wl,--gc-sections -fno-stack-protector \
+		-fno-stack-clash-protection -fno-asynchronous-unwind-tables" \
+		LDFLAGS="-static"
 
 clean: FRC
 	rm -f $(ALL)
