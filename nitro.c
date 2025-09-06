@@ -17,7 +17,9 @@
 #endif
 #ifdef __NetBSD__
 #include <sys/mount.h>
+#include <sys/reboot.h>
 #include <fs/tmpfs/tmpfs_args.h>
+#include <ufs/ufs/ufsmount.h>
 #endif
 
 #include <dirent.h>
@@ -1860,7 +1862,7 @@ again:
 	if (errno != ENOENT)
 		prn(2, "- nitro: SYS/reincarnate failed to exec: errno=%d\n", errno);
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__NetBSD__)
 	if (real_pid1) {
 		if (access("SYS/final", X_OK) == 0) {
 			prn(2, "- nitro: SYS/final starting\n");
@@ -1886,22 +1888,40 @@ again:
 			}
 		}
 
+#ifdef __linux__
 		if (mount("/", "/", "", MS_REMOUNT | MS_RDONLY, "") < 0)
 			prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
 		else
 			prn(2, "- nitro: remounted / read-only\n");
+#endif
+#ifdef __NetBSD__
+		char args[256];
+		size_t arglen = mount(MOUNT_FFS, "/", MNT_GETARGS, &args, sizeof args);
+		if (arglen > 0) {
+			if (mount(MOUNT_FFS, "/", MNT_UPDATE | MNT_RDONLY, &args, arglen) < 0)
+				prn(2, "- nitro: could not remount / read-only: errno=%d\n", errno);
+			else
+				prn(2, "- nitro: remounted / read-only\n");
+		}
+#endif
 
 		sync();
 
 		prn(2, "- nitro: system %s\n", want_reboot ? "reboot" : "halt");
 		sleep(1);
 
-		if (want_reboot) {
+#ifdef __linux__
+		if (want_reboot)
 			reboot(RB_AUTOBOOT);
-		} else {
-			// falls back to RB_HALT_SYSTEM if not possible
-			reboot(RB_POWER_OFF);
-		}
+		else
+			reboot(RB_POWER_OFF);  // falls back to RB_HALT_SYSTEM if not possible
+#endif
+#ifdef __NetBSD__
+		if (want_reboot)
+			reboot(RB_AUTOBOOT, 0);
+		else
+			reboot(RB_HALT | RB_POWERDOWN, 0);
+#endif
 
 		fatal("reboot: errno=%d", errno);
 	}
