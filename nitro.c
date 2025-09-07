@@ -306,7 +306,7 @@ int
 stat_slash_to_at(const char *dir, const char *name, struct stat *st)
 {
 	char *instance = strchr(dir, '@');
-	char t;
+	char t = 0;
 	if (instance) {
 		instance++;
 		t = *instance;
