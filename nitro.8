@@ -1,4 +1,4 @@
-.Dd August 27, 2025
+.Dd September 7, 2025
 .Dt NITRO 8
 .Os
 .Sh NAME
@@ -78,15 +78,25 @@ If this file exists, the first character of it encodes the signal
 .Pq see Xr nitroctl 1
 that is sent to the service to bring it down, else SIGTERM.
 .El
-.Sh ENVIRONMENT
-.Bl -tag -width Ds
-.It Ev NITRO_SOCK
-The control socket
-.Pq by default: Pa /var/run/nitro/nitro.sock
-where
+.Sh SOCKET CONFIGURATION
 .Nm
-listens for commands sent by
-.Xr nitroctl 1 .
+uses a single Unix socket for control.  The socket path is
+determined in the following way:
+.Bl -enum
+.It
+The environment variable
+.Ev NITRO_SOCK ,
+if it is set.
+.It
+The target of the symlink
+.Pa /etc/nitro.sock ,
+if that link exists.
+.It
+On Linux,
+.Pa /run/nitro/nitro.sock .
+.It
+On other operating systems,
+.Pa /var/run/nitro/nitro.sock .
 .El
 .Sh FILES
 The following special files are used inside the service directory:

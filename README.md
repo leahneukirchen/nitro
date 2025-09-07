@@ -2,20 +2,22 @@
 
 ## Overview
 
-nitro is a tiny process supervisor that also can be used as pid 1 on Linux.
+nitro is a tiny process supervisor that also can be used as pid 1 on
+Linux and NetBSD.
 
-There are four main applications it is designed for:
-- As init for a Linux machine for embedded, desktop or server purposes
+These are the main applications nitro is designed for:
+- As init for a Linux or NetBSD machine for embedded, desktop or
+  server purposes
 - As init for a Linux initramfs
 - As init for a Linux container (Docker/Podman/LXC/Kubernetes)
-- As unprivileged supervision daemon on POSIX systems
+- As unprivileged supervision daemon on generic POSIX systems
 
 nitro is configured by a directory of scripts, defaulting to
 `/etc/nitro` (or the first command line argument).
 
 ## Requirements
 
-- Kernel support for Unix sockets
+- Kernel support for Unix sockets (SOCK_DGRAM)
 - `tmpfs` or writable `/run` on another fs
 
 ## Benefits over other systems
@@ -138,6 +140,19 @@ There are 9 possible states a service can be in:
   fix itself.  Investigate and restart the service manually.
 - `DELAY`: the service is down.  An error has happened that will
   potentially fix itself.  The service will be restarted automatically.
+
+## Control socket configuration
+
+nitro uses a single Unix socket for control.  The socket path is
+determined in the following way:
+1. The environment variable NITRO_SOCK, if it is set.
+2. The target of the symlink /etc/nitro.sock, if that link exists.
+3. On Linux, /run/nitro/nitro.sock.
+4. On other operating systems, /var/run/nitro/nitro.sock.
+
+Note that the socket needs to be on a writable file system.
+When used as pid 1, nitro mounts `/run` (on Linux) or the target of
+`/etc/nitro.sock` (on NetBSD) as a tmpfs.
 
 ## Controlling nitro with nitroctl
 
