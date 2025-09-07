@@ -77,6 +77,16 @@ If this file exists, the service is not brought up automatically.
 If this file exists, the first character of it encodes the signal
 .Pq see Xr nitroctl 1
 that is sent to the service to bring it down, else SIGTERM.
+.It Pa notification-fd
+If this file exists and contains a number, the service will be started
+having the file descriptor with this number connected to a pipe.
+Once the service is ready, it should write a newline to the pipe
+.Pq and ideally close it .
+Other data can be written but is ignored,
+only the newline is relevant.
+Then
+.Nm
+considers the service UP.
 .El
 .Sh SOCKET CONFIGURATION
 .Nm

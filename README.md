@@ -129,7 +129,7 @@ There are 9 possible states a service can be in:
 - `DOWN`: the service is not running and is not supposed to.
 - `SETUP`: the service is running the `./setup` script.
 - `STARTING`: the service is running the `./run` script, but is not
-  considered ready yet (currently, the first 2 seconds of lifetime).
+  considered ready yet.
 - `UP`: the service is running.
 - `ONESHOT`: it's a "one shot" service and `./setup` has finished.
 - `SHUTDOWN`: the service is being brought down, or it has exited
@@ -140,6 +140,20 @@ There are 9 possible states a service can be in:
   fix itself.  Investigate and restart the service manually.
 - `DELAY`: the service is down.  An error has happened that will
   potentially fix itself.  The service will be restarted automatically.
+
+## Readiness notification
+
+If a service directory has a file `notification-fd` which contains a
+number, the service will be started having the file descriptor with
+this number connected to a pipe.  Once the service is ready, it should
+write a newline to the pipe (and ideally close it).  Other data can be
+written but is ignored, only the newline is relevant.  Then nitro
+considers the service UP.
+
+If the file `notification-fd` does not exist, nitro considers
+services to be up after 2 seconds.
+
+This mechanism is compatible with s6 and dinit.
 
 ## Control socket configuration
 
