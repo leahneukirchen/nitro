@@ -1678,6 +1678,84 @@ init_mount()
 #endif
 }
 
+#ifdef __linux__
+
+#define BUFFER_SIZE 4096
+#define WHITESPACE " \t\n\r"
+
+int
+parse_cmdline()
+{
+	if (!mounted("/proc"))
+		if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) < 0)
+			return 0;
+
+	int fd = open("/proc/cmdline", O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	char buf[BUFFER_SIZE + 1];
+	ssize_t n;
+
+	while ((n = read(fd, buf, BUFFER_SIZE)) > 0) {
+		buf[n] = 0;
+		char *str = buf;
+		while (*str) {
+again:
+			// skip leading whitespace
+			str += strspn(str, WHITESPACE);
+			// no tokens remaining
+			if (!*str)
+				break;
+
+			char *end;
+			// loop until we find whitespace
+			while (!*(end = str + strcspn(str, WHITESPACE))) {
+				// check if token is split across reads
+				// we're only looking for strings with a maximum of length 6
+				if (end - str <= 6) {
+					size_t len = end - str;
+					memmove(buf, str, len);
+					n = read(fd, buf + len, BUFFER_SIZE - len);
+					if (n < 0)
+						goto end;
+					buf[len + n] = 0;
+					str = buf;
+					if (n == 0) {
+						close(fd);
+						return strcmp(str, "S") == 0 || strcmp(str, "single") == 0;
+					}
+				} else {
+					// read until we find whitespace
+					while ((n = read(fd, buf, BUFFER_SIZE)) > 0) {
+						buf[n] = 0;
+						str = strpbrk(buf, WHITESPACE);
+						if (str)
+							goto again;
+					}
+
+					goto end;
+				}
+			}
+
+			*end = 0;
+
+			if (strcmp(str, "S") == 0 || strcmp(str, "single") == 0) {
+				close(fd);
+				return 1;
+			}
+
+			str = end + 1;
+		}
+	}
+
+end:
+	close(fd);
+	return 0;
+}
+
+#endif
+
 void
 killall()
 {
@@ -1794,10 +1872,12 @@ main(int argc, char *argv[])
 	}
 
 	const char *dir = "/etc/nitro";
-	if (argc == 2)
+	if (argc >= 2)
 		dir = argv[1];
-	if (real_pid1 && (strcmp(dir, "S") == 0 || strcmp(dir, "single") == 0))
+#ifdef __linux__
+	else if (real_pid1 && parse_cmdline())
 		dir = "/etc/nitro.single";
+#endif
 
 	if (chdir(dir) < 0)
 		fatal("chdir to '%s': errno=%d\n", dir, errno);
