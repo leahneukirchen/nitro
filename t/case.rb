@@ -97,7 +97,9 @@ def testcase(svdir, timeout=10, &block)
       }
     }
 
-    pid = Process.spawn("reap -v ./nitro #{svdir}")
+    cmd = "./nitro #{svdir}"
+    cmd = "reap -v #{cmd}"  if `sh -c "command -v reap"`.size > 0
+    pid = Process.spawn(cmd)
     Thread.new {
       begin
         Process.wait(pid)
