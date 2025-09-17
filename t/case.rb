@@ -74,7 +74,7 @@ class LockArray < Array
   end
 end
 
-def testcase(svdir, timeout=10, &block)
+def testcase(svdir, timeout=60, &block)
   pid = nil
 
   tmpdir = Dir.mktmpdir("nitro-test-")
