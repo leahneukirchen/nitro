@@ -93,7 +93,7 @@ def testcase(svdir, timeout=60, &block)
       loop {
         data = sock.recvfrom(4096).first
         p [:SOCK, data]
-        queue << [STATE[data[0]], data[1..].chomp]
+        queue << [STATE[data[0]], data[1..-1].chomp]
       }
     }
 
