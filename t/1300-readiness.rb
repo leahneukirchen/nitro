@@ -5,7 +5,7 @@ with_fixture "plain/run!" => <<EOF_A, "readiness/run!" => <<EOF_B, "readiness/no
 sleep 100
 EOF_A
 #!/bin/sh
-[ -p /dev/fd/37 ]
+ruby -e 'exit IO.open(37).stat.pipe?'
 echo $? >checkfd
 echo up >/dev/fd/37
 sleep 100
@@ -13,7 +13,7 @@ EOF_B
               "sv@/run!" => <<EOF_C, "sv@/notification-fd" => "3\n", "sv@abc=" => "sv@" do |svdir|
 #!/bin/sh
 echo up >/dev/fd/3
-[ -p /dev/fd/3 ]
+ruby -e 'exit IO.open(3).stat.pipe?'
 echo $? >checkfd
 sleep 100
 EOF_C

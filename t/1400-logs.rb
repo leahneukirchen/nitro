@@ -2,7 +2,7 @@ require './t/case'
 
 with_fixture "sv_a/run!" => <<EOF_A, "sv_a/log=" => "../mylog", "mylog/run!" => <<EOF_B do |svdir|
 #!/bin/sh
-[ -p /dev/fd/1 ]
+ruby -e 'exit STDOUT.stat.pipe?'
 echo $? >checkstdout
 echo 1
 sleep 1
@@ -11,7 +11,7 @@ echo 3
 sleep 100
 EOF_A
 #!/bin/sh
-[ -p /dev/fd/0 ]
+ruby -e 'exit STDIN.stat.pipe?'
 echo $? >checkstdin
 exec cat >mylog.txt
 EOF_B
