@@ -2,10 +2,10 @@ require './t/case'
 
 with_fixture "sv_a/run!" => <<EOF_A, "sv_b/run!" => <<EOF_B do |svdir|
 #!/bin/sh
-sleep 100
+exec sleep 100
 EOF_A
 #!/bin/sh
-sleep 100
+exec sleep 100
 EOF_B
   testcase(svdir) { |events|
     # service is brought up by default

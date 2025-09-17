@@ -6,7 +6,7 @@ echo A
 sleep 1
 echo A
 echo A
-sleep 100
+exec sleep 100
 EOF_A
              "sv_b/run!" => <<EOF_B, "sv_b/log=" => "../mylog",
 #!/bin/sh
@@ -14,7 +14,7 @@ echo B
 echo B
 sleep 1
 echo B
-sleep 100
+exec sleep 100
 EOF_B
              "mylog/run!" => <<EOF do |svdir|
 #!/bin/sh

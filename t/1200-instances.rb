@@ -2,7 +2,7 @@ require './t/case'
 
 with_fixture "sv@/run!" => <<EOF_A do |svdir|
 #!/bin/sh
-sleep 100
+exec sleep 100
 EOF_A
   testcase(svdir) { |events|
     sleep 1

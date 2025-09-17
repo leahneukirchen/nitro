@@ -6,16 +6,16 @@ with_fixture "readiness1/notification-fd" => "3\n",
              "readiness1/run!" => <<EOF,
 #!/bin/sh
 # no readiness
-sleep 100
+exec sleep 100
 EOF
              "readiness2/run!" => <<EOF,
 #!/bin/sh
 printf up >/dev/fd/3  # no newline
-sleep 100
+exec sleep 100
 EOF
              "readiness3/run!" => <<EOF do |svdir|
 #!/bin/sh
-sleep 100
+exec sleep 100
 EOF
   testcase(svdir) { |events|
     events.poll_for(["STARTING", "readiness1"])

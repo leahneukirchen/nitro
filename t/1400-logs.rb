@@ -8,7 +8,7 @@ echo 1
 sleep 1
 echo 2
 echo 3
-sleep 100
+exec sleep 100
 EOF_A
 #!/bin/sh
 ruby -e 'exit STDIN.stat.pipe?'

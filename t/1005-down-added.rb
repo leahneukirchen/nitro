@@ -9,7 +9,7 @@ with_fixture({}) do |svdir|
     File.open(File.join(svdir, "sv_a/run"), "w", 0755) { |f|
       f << <<EOF
 #!/bin/sh
-sleep 100
+exec sleep 100
 EOF
     }
 
