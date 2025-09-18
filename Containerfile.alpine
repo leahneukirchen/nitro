@@ -10,7 +10,7 @@ COPY nitro.c .
 COPY nitroctl.c .
 COPY Makefile .
 
-RUN make tiny
+RUN make tiny CPPFLAGS=-DREOPEN_USE_DUP_HACK
 
 VOLUME /out
 

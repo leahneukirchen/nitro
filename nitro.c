@@ -143,6 +143,7 @@ DIR *cwd;
 DIR *notifydir;
 char notifypath[256];
 const char *control_socket_path;
+const char *dir = "/etc/nitro";
 
 long total_reaps;
 long total_sv_reaps;
@@ -1128,6 +1129,38 @@ refresh_log:
 	return i;
 }
 
+static void
+reopendir(DIR **d)
+{
+#ifdef REOPEN_USE_CLOSEDIR
+	DIR *newd = opendir(dir);
+	if (!newd)
+		return;
+	closedir(*d);
+	*d = newd;
+	fchdir(dirfd(newd));
+#else
+
+	// avoid OpenBSD bug: ensure we hit end, so rewinddir forces re-read.
+	while (readdir(*d))
+		;
+
+#ifdef REOPEN_USE_DUP_HACK
+	// this fiddles in the internals of DIR, use only if you vetted
+	// your libc to tolerate this!
+	int fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (fd >= 0) {
+		if (dup3(fd, dirfd(*d), O_CLOEXEC) < 0)
+			close(fd);
+		else
+			fchdir(dirfd(*d));
+	}
+#endif
+
+	rewinddir(*d);
+#endif
+}
+
 void
 rescan()
 {
@@ -1136,8 +1169,9 @@ rescan()
 	for (i = 0; i < max_service; i++)
 		services[i].seen = 0;
 
+	reopendir(&cwd);
+
 	struct dirent *ent;
-	rewinddir(cwd);
 	while ((ent = readdir(cwd))) {
 		char *name = ent->d_name;
 		struct stat st;
@@ -1793,18 +1827,17 @@ main(int argc, char *argv[])
 			close(voidfd);
 	}
 
-	const char *dir = "/etc/nitro";
 	if (argc == 2)
 		dir = argv[1];
 	if (real_pid1 && (strcmp(dir, "S") == 0 || strcmp(dir, "single") == 0))
 		dir = "/etc/nitro.single";
 
-	if (chdir(dir) < 0)
-		fatal("chdir to '%s': errno=%d\n", dir, errno);
-
-	cwd = opendir(".");
+	cwd = opendir(dir);
 	if (!cwd)
 		fatal("opendir '%s': errno=%d\n", dir, errno);
+
+	if (fchdir(dirfd(cwd)) < 0)
+		fatal("fchdir to '%s': errno=%d\n", dir, errno);
 
 	if (pipe2(selfpipe, O_NONBLOCK | O_CLOEXEC) < 0)
 		fatal("selfpipe pipe: errno=%d\n", errno);
