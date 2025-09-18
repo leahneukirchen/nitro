@@ -143,7 +143,7 @@ DIR *cwd;
 DIR *notifydir;
 char notifypath[256];
 const char *control_socket_path;
-const char *dir = "/etc/nitro";
+const char *servicedir = "/etc/nitro";
 
 long total_reaps;
 long total_sv_reaps;
@@ -1133,7 +1133,7 @@ static void
 reopendir(DIR **d)
 {
 #ifdef REOPEN_USE_CLOSEDIR
-	DIR *newd = opendir(dir);
+	DIR *newd = opendir(servicedir);
 	if (!newd)
 		return;
 	closedir(*d);
@@ -1148,7 +1148,7 @@ reopendir(DIR **d)
 #ifdef REOPEN_USE_DUP_HACK
 	// this fiddles in the internals of DIR, use only if you vetted
 	// your libc to tolerate this!
-	int fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	int fd = open(servicedir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 	if (fd >= 0) {
 		if (dup3(fd, dirfd(*d), O_CLOEXEC) < 0)
 			close(fd);
@@ -1828,16 +1828,16 @@ main(int argc, char *argv[])
 	}
 
 	if (argc == 2)
-		dir = argv[1];
-	if (real_pid1 && (strcmp(dir, "S") == 0 || strcmp(dir, "single") == 0))
-		dir = "/etc/nitro.single";
+		servicedir = argv[1];
+	if (real_pid1 && (strcmp(servicedir, "S") == 0 || strcmp(servicedir, "single") == 0))
+		servicedir = "/etc/nitro.single";
 
-	cwd = opendir(dir);
+	cwd = opendir(servicedir);
 	if (!cwd)
-		fatal("opendir '%s': errno=%d\n", dir, errno);
+		fatal("opendir '%s': errno=%d\n", servicedir, errno);
 
 	if (fchdir(dirfd(cwd)) < 0)
-		fatal("fchdir to '%s': errno=%d\n", dir, errno);
+		fatal("fchdir to '%s': errno=%d\n", servicedir, errno);
 
 	if (pipe2(selfpipe, O_NONBLOCK | O_CLOEXEC) < 0)
 		fatal("selfpipe pipe: errno=%d\n", errno);
