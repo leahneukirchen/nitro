@@ -281,6 +281,13 @@ exec1(const char *cmd, const char *arg)
 	return execve(cmd, argv, child_environ);
 }
 
+static int
+exec3(const char *cmd, const char *arg1, char *arg2, char *arg3)
+{
+	char *const argv[5] = { (char *)cmd, (char *)arg1, (char *)arg2, (char *)arg3, 0 };
+	return execve(cmd, argv, child_environ);
+}
+
 int
 panic()
 {
@@ -620,8 +627,7 @@ proc_finish(int i)
 				instance = (char *)"shutdown";
 		}
 
-		char *const args[4] = { (char *)"finish", run_status, run_signal, instance };
-		execve(args[0], args, child_environ);
+		exec3("finish", run_status, run_signal, instance);
 		_exit(127);
 	} else if (child < 0) {
 		/* fork failed, skip over the finish script */
