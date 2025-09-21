@@ -472,9 +472,9 @@ proc_launch(int i)
 
 		exec1("run", instance);
 
-		status = (errno == ENOENT ? 127 : 126);
+		status = errno;
 		(void)! write(alivepipefd[1], &status, 1);
-		_exit(status);
+		_exit(status == ENOENT ? 127 : 126);
 	} else if (child < 0) {
 		/* fork failed, delay */
 		prn(2, "- nitro: can't fork %s/%s: errno=%d\n", services[i].name, "run", errno);
@@ -488,7 +488,7 @@ proc_launch(int i)
 
 	close(alivepipefd[1]);
 	if (read(alivepipefd[0], &status, 1) == 1) {
-		dprn("exec failed with status %d\n", status);
+		prn(2, "- nitro: can't exec %s/%s: errno=%d\n", services[i].name, "run", status);
 		close(alivepipefd[0]);
 fatal:
 		services[i].state = PROC_FATAL;
