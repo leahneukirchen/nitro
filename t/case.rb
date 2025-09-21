@@ -123,18 +123,17 @@ def testcase(svdir, timeout=60, &block)
       exit 1
     end
   }
-ensure
+
   if pid && Process.kill('CONT', pid)
-    p "sending TERM to #{pid}"
-    Process.kill('TERM', pid)
+    Process.kill('TERM', pid)  if pid
     sleep 0.1
-    Process.kill('TERM', pid)
+    Process.kill('TERM', pid)  if pid
     sleep 0.1
-    Process.kill('TERM', pid)
+    Process.kill('TERM', pid)  if pid
     sleep 0.1
-    Process.kill('TERM', pid)
+    Process.kill('TERM', pid)  if pid
     begin
-      Process.wait(pid)
+      Process.wait(pid)  if pid
     rescue Errno::ECHILD
       # ok?
     end
