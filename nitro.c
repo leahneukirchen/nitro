@@ -1144,7 +1144,7 @@ reopendir(DIR **d)
 		return;
 	closedir(*d);
 	*d = newd;
-	fchdir(dirfd(newd));
+	(void)!fchdir(dirfd(newd));
 #else
 
 	// avoid OpenBSD bug: ensure we hit end, so rewinddir forces re-read.
@@ -1159,7 +1159,7 @@ reopendir(DIR **d)
 		if (dup3(fd, dirfd(*d), O_CLOEXEC) < 0)
 			close(fd);
 		else
-			fchdir(dirfd(*d));
+			(void)!fchdir(dirfd(*d));
 	}
 #endif
 
