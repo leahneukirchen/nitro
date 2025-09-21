@@ -1303,6 +1303,8 @@ do_shutdown()
 		} else {
 			do_stop_services();
 		}
+	} else if (global_state == GLBL_WAIT_FINISH) {
+		do_stop_services();
 	}
 }
 
