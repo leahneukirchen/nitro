@@ -19,6 +19,7 @@ EOF_SYS_FINISH
     events.poll_for(["UP", "sv_b"])
 
     `nitroctl Reboot`
+    sleep 1
 
     events.poll_for(["DOWN", "sv_a"])
 
@@ -31,6 +32,5 @@ EOF_SYS_FINISH
                         ["DOWN", "SYS"],
                         ["SETUP", "SYS"],
                         ["STARTING", "sv_a"]])
-
   }
 end
