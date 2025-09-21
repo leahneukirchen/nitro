@@ -29,8 +29,11 @@ EOF_SYS_FINISH
 
     match_seq?(events, [["DOWN", "SYS"],
                         ["UP", "sv_b"],
-                        ["DOWN", "sv_b"],
                         ["DOWN", "sv_a"]])
+
+    match_seq?(events, [["DOWN", "SYS"],
+                        ["UP", "sv_b"],
+                        ["DOWN", "sv_b"]])
 
     File.read(File.join(svdir, "SYS/finish_args")) == "0 0 shutdown\n"  or raise "wrong finish_args"
   }
