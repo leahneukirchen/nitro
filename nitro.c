@@ -1653,10 +1653,12 @@ has_died(pid_t pid, int status)
 
 			if (strcmp(services[i].name, "SYS") == 0) {
 				prn(2, "- nitro: SYS/finish finished\n");
+				process_step(i, EVNT_FINISHED);
 				do_stop_services();
+			} else {
+				process_step(i, EVNT_FINISHED);
 			}
 
-			process_step(i, EVNT_FINISHED);
 			return;
 		}
 	}
