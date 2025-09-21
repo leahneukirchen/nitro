@@ -12,6 +12,7 @@ EOF_B
 nitroctl start sv_a
 EOF_SYS_SETUP
 #!/bin/sh
+echo $@ > finish_args
 nitroctl restart sv_b
 nitroctl stop sv_b
 EOF_SYS_FINISH
@@ -30,5 +31,7 @@ EOF_SYS_FINISH
                         ["UP", "sv_b"],
                         ["DOWN", "sv_b"],
                         ["DOWN", "sv_a"]])
+
+    File.read(File.join(svdir, "SYS/finish_args")) == "0 0 shutdown\n"  or raise "wrong finish_args"
   }
 end
