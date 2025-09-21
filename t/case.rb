@@ -97,7 +97,7 @@ def testcase(svdir, timeout=60, &block)
       }
     }
 
-    cmd = "./nitro #{svdir}"
+    cmd = "#{Dir.pwd}/nitro #{svdir}"
     cmd = "reap -v #{cmd}"  if `sh -c "command -v reap"`.size > 0
     pid = Process.spawn(cmd)
     Thread.new {
@@ -127,7 +127,11 @@ ensure
   if pid && Process.kill('CONT', pid)
     p "sending TERM to #{pid}"
     Process.kill('TERM', pid)
+    sleep 0.1
     Process.kill('TERM', pid)
+    sleep 0.1
+    Process.kill('TERM', pid)
+    sleep 0.1
     Process.kill('TERM', pid)
     begin
       Process.wait(pid)
