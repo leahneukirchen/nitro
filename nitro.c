@@ -1648,13 +1648,13 @@ has_died(pid_t pid, int status)
 			dprn("finish script %s[%d] has died with status %d\n",
 			    services[i].name, pid, status);
 			services[i].finishpid = 0;
-			process_step(i, EVNT_FINISHED);
 
 			if (strcmp(services[i].name, "SYS") == 0) {
 				prn(2, "- nitro: SYS/finish finished\n");
 				do_stop_services();
 			}
 
+			process_step(i, EVNT_FINISHED);
 			return;
 		}
 	}
