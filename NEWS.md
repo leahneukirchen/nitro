@@ -1,3 +1,8 @@
+## 0.4.1 (2025-09-23)
+
+* feature: print execution errors for run scripts
+* bugfix: avoid hang after SYS/finish
+
 ## 0.4 (2025-09-19)
 
 * feature: support for pid 1 on NetBSD
