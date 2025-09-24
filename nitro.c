@@ -1852,11 +1852,9 @@ main(int argc, char *argv[])
 	if (pipe2(selfpipe, O_NONBLOCK | O_CLOEXEC) < 0)
 		fatal("selfpipe pipe: errno=%d\n", errno);
 
-	if (pipe2(globallog, O_CLOEXEC) < 0)
+	if (pipe2(globallog, O_CLOEXEC) < 0)   // keep globallog blocking
 		fatal("globallog pipe: errno=%d\n", errno);
-	/* keep globallog[0] blocking */
-	fcntl(globallog[1], F_SETFL, O_NONBLOCK);
-	globallog[1] = -globallog[1]; /* made active when LOG is started */
+	globallog[1] = -globallog[1];     // made active when LOG is started
 
 	sigset_t allset;
 	sigfillset(&allset);
