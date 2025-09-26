@@ -12,5 +12,8 @@ EOF_SETUP
 
     # process is marked FATAL
     match_seq?(events, [["SETUP", "sv_a"], ["FATAL", "sv_a"]])
+
+    `nitroctl start sv_a`
+    $?.exitstatus == 1  or raise "wrong exit code"
   }
 end
