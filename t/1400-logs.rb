@@ -18,6 +18,7 @@ EOF_B
   testcase(svdir) { |events|
     events.poll_for(["STARTING", "sv_a"])
     events.poll_for(["UP", "mylog"])
+    sleep 0.5
 
     File.read(File.join(svdir, "sv_a/checkstdout")) == "0\n"  or raise "no output pipe created"
     File.read(File.join(svdir, "mylog/checkstdin")) == "0\n"  or raise "no input pipe created"
@@ -25,11 +26,13 @@ EOF_B
     File.read(File.join(svdir, "mylog/mylog.txt")) == "1\n2\n3\n"  or raise "wrong log 1"
 
     `nitroctl restart sv_a`
+    sleep 0.5
 
     File.read(File.join(svdir, "mylog/mylog.txt")) == "1\n2\n3\n1\n2\n3\n"  or raise "wrong log 2"
 
     `nitroctl fast-restart mylog`
     `nitroctl restart sv_a`
+    sleep 0.5
 
     File.read(File.join(svdir, "mylog/mylog.txt")) == "1\n2\n3\n"  or raise "wrong log 3"
   }

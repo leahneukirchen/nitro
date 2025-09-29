@@ -19,7 +19,7 @@ exec sleep 100
 EOF_C
   testcase(svdir) { |events|
     events.poll_for(["STARTING", "plain"])
-    sleep 0.1
+    sleep 0.5
     `nitroctl` =~ /UP plain/  and raise "default timeout failed"
     `nitroctl` =~ /UP readiness/  or raise "readiness failed"
 
