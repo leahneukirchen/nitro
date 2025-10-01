@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
+#include <math.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdint.h>
@@ -355,14 +356,15 @@ init_usage:
 		case 't': {
 			errno = 0;
 			char *rest = 0;
-			int secs = strtol(optarg, &rest, 10);
-                        if (secs < 0 || *rest || errno != 0) {
-	                        dprintf(2, "nitroctl: invalid timeout\n");
-	                        exit(2);
-                        }
-                        timeout = time_now() + secs * 1000;
+			double secs = strtod(optarg, &rest);
+			if (secs < 0.0 || *rest || errno != 0) {
+				fprintf(stderr, "nitroctl: invalid timeout\n");
+				exit(2);
+			}
+			if (isfinite(secs))
+				timeout = time_now() + secs * 1000;
 
-                        break;
+			break;
 		}
 		default:
 			goto usage;
