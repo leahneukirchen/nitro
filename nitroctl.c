@@ -15,7 +15,9 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,10 +31,35 @@
 
 #include "nitro.h"
 
-int connfd;
 const char *sockpath;
-char notifypath[PATH_MAX];
-volatile sig_atomic_t got_signal;
+
+struct request {
+	char cmd;
+	char reply;
+	char wait;
+	char *service;
+	char notifypath[128];
+};
+
+struct request reqs[100];
+struct pollfd fds[100];
+int maxreq = 0;
+
+typedef int64_t deadline;               /* milliseconds since boot */
+
+deadline
+time_now()
+{
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (deadline)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+static int
+max(int a, int b)
+{
+	return a > b ? a : b;
+}
 
 static const char *
 proc_state_str(enum process_state state)
@@ -63,25 +90,31 @@ streq(const char *a, const char *b)
 	return strcmp(a, b) == 0;
 }
 
-void
-on_signal(int signal)
+char *
+normalize(char *service)
 {
-	got_signal = signal;
+	char *tail = strrchr(service, '/');
+	if (!tail)
+		return service;
+	if (access(service, F_OK) == 0)
+		return tail + 1;
+
+	fprintf(stderr, "nitroctl: no such service: %s: %s\n",
+	    service, strerror(errno));
+	exit(1);
 }
 
 void
 cleanup_notify()
 {
-	unlink(notifypath);
+	for (int i = 0; i < maxreq; i++)
+		unlink(reqs[i].notifypath);
 }
 
-void
-notifysock(const char *service)
+int
+notifysock(const char *service, int i, char *notifypath)
 {
-	if (*notifypath)
-		return;
-
-	connfd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	int connfd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (connfd < 0) {
 		perror("socket");
 		exit(111);
@@ -93,8 +126,10 @@ notifysock(const char *service)
 		path = default_sock;
 	path = dirname(path);
 
-	snprintf(notifypath, sizeof notifypath,
-	    "%s/notify/%s,%ld", path, service, (long)getpid());
+	snprintf(notifypath, sizeof (struct request){ 0 }.notifypath,
+	    "%s/notify/%s,%ld_%d", path, service, (long)getpid(), i);
+
+	free(sockpath2);
 
 	struct sockaddr_un my_addr = { 0 };
 	my_addr.sun_family = AF_UNIX;
@@ -110,7 +145,6 @@ again:
 		    notifypath, strerror(errno));
 		exit(111);
 	}
-	atexit(cleanup_notify);
 
 	struct sockaddr_un addr = { 0 };
 	addr.sun_family = AF_UNIX;
@@ -120,101 +154,12 @@ again:
 		exit(111);
 	}
 
-	free(sockpath2);
+	return connfd;
 }
 
-int
-send_and_wait(char cmd, const char *service, int fast)
+void
+list(char *buf)
 {
-	notifysock(service);
-
-	dprintf(connfd, "%c%s", cmd, service);
-
-	struct sigaction sa = {
-		.sa_handler = on_signal,
-		.sa_flags = 0,
-	};
-	sigaction(SIGALRM, &sa, 0);
-	sigaction(SIGINT, &sa, 0);
-
-	while (!got_signal) {
-		ssize_t rd;
-		char buf[64];
-
-		rd = read(connfd, buf, sizeof buf); /* block */
-		if (rd < 0) {
-			if (errno == EINTR)
-				continue;
-			perror("read");
-			exit(111);
-		}
-
-		buf[rd] = 0;
-
-		int state = 0;
-		if (buf[0] >= 'A' && buf[0] <= 'Z')
-			state = buf[0] - 64;
-
-		if (buf[0] == 'e') {
-			fprintf(stderr, "nitroctl: no such service '%s'\n", service);
-			return 111;
-		}
-
-		switch (cmd) {
-		case 'u':
-		case 'r':
-			if (fast && state == PROC_STARTING)
-				return 0;
-			if (state == PROC_UP || state == PROC_ONESHOT)
-				return 0;
-			if (state == PROC_FATAL) {
-				fprintf(stderr,
-				    "nitroctl: failed to %sstart '%s'\n", cmd == 'u' ? "" : "re", service);
-				return 1;
-			}
-			break;
-		case 'd':
-			if (fast && state == PROC_SHUTDOWN)
-				return 0;
-			if (state == PROC_DOWN || state == PROC_FATAL)
-				return 0;
-			break;
-		case '?':
-			if (state == PROC_STARTING || state == PROC_UP ||
-			    state == PROC_SHUTDOWN || state == PROC_RESTART) {
-				if (fast)
-					printf("%s", buf + 1);
-				return 0;
-			}
-			return 1;
-		}
-	}
-
-	if (got_signal == SIGALRM)
-		fprintf(stderr, "nitroctl: action timed out\n");
-	return 2;
-}
-
-int
-send_and_print(char cmd, const char *service)
-{
-	notifysock("");
-
-	dprintf(connfd, "%c%s", cmd, service);
-
-	int status = 1;
-
-	ssize_t rd;
-	char buf[4096];
-	rd = read(connfd, buf, sizeof buf - 1);
-	if (rd < 0) {
-		perror("read");
-		exit(111);
-	}
-	if (rd > 0 || cmd == 'l')
-		status = 0;
-	buf[rd] = 0;
-
 	char *s = buf;
 	char name[64];
 	long pid, state, wstatus, uptime;
@@ -228,29 +173,69 @@ send_and_print(char cmd, const char *service)
 			printf(" (pid %ld)", pid);
 		printf(" (wstatus %ld) %lds\n", wstatus, uptime);
 	}
-
-	if (streq(s, "ok\n"))
-		status = 0;
-	else if (streq(s, "error\n"))
-		status = 1;
-	else if (s == buf)
-		printf("%s", s);
-
-	return status;
 }
 
-char *
-normalize(char *service)
+int
+handle_response(int i)
 {
-	char *tail = strrchr(service, '/');
-	if (!tail)
-		return service;
-	if (access(service, F_OK) == 0)
-		return tail + 1;
+	ssize_t rd;
+	char buf[4096];
+	rd = read(fds[i].fd, buf, sizeof buf - 1);
+	if (rd < 0) {
+		perror("read");
+		return 111;
+	}
+	buf[rd] = 0;
 
-	fprintf(stderr, "nitroctl: no such service: %s: %s\n",
-	    service, strerror(errno));
-	exit(1);
+	if (reqs[i].cmd != 'l' && reqs[i].cmd != '#' && buf[0] == 'e') {
+		fprintf(stderr, "nitroctl: no such service '%s'\n",
+		    reqs[i].service);
+		return 111;
+	}
+
+	int state = 0;
+	if (buf[0] >= 'A' && buf[0] <= 'Z')
+		state = buf[0] - 64;
+
+	switch (reqs[i].cmd) {
+	case 'l':
+		list(buf);
+		return 0;
+	case '#':
+		printf("%s", buf);
+		return 0;
+	case 'u':
+	case 'r':
+		if (!reqs[i].wait && state == PROC_STARTING)
+			return 0;
+		if (state == PROC_UP || state == PROC_ONESHOT)
+			return 0;
+		if (state == PROC_FATAL) {
+			fprintf(stderr,
+			    "nitroctl: failed to %sstart '%s'\n",
+			    reqs[i].cmd == 'u' ? "" : "re", reqs[i].service);
+			return 1;
+		}
+		break;
+	case 'd':
+		if (!reqs[i].wait && state == PROC_SHUTDOWN)
+			return 0;
+		if (state == PROC_DOWN || state == PROC_FATAL)
+			return 0;
+		break;
+	case '?':
+		if (state == PROC_STARTING || state == PROC_UP ||
+		    state == PROC_SHUTDOWN || state == PROC_RESTART) {
+			if (reqs[i].wait)
+				printf("%s", buf + 1);
+			return 0;
+		}
+		return 1;
+	default:
+		return 0;
+	}
+
+	return -1;  // again
 }
 
 #ifdef INIT_SYSTEM
@@ -305,12 +290,6 @@ suffix(const char *str, const char *suff)
 	return b <= a && strcmp(str + a - b, suff) == 0;
 }
 #endif
-
-static int
-max(int a, int b)
-{
-	return a > b ? a : b;
-}
 
 int
 main(int argc, char *argv[])
@@ -369,27 +348,31 @@ init_usage:
 	}
 #endif
 
+	deadline timeout = 0;
 	int c;
 	while ((c = getopt(argc, argv, "t:")) != -1)
 		switch(c) {
 		case 't': {
 			errno = 0;
 			char *rest = 0;
-			int timeout = strtol(optarg, &rest, 10);
-                        if (timeout < 0 || *rest || errno != 0) {
+			int secs = strtol(optarg, &rest, 10);
+                        if (secs < 0 || *rest || errno != 0) {
 	                        dprintf(2, "nitroctl: invalid timeout\n");
 	                        exit(2);
                         }
-                        alarm(timeout);
+                        timeout = time_now() + secs * 1000;
+
                         break;
 		}
 		default:
-			printf("c=%c\n", c);
- 			goto usage;
+			goto usage;
 		}
 
 	argc -= optind;
         argv += optind;
+
+        if (argc > 100)
+	        argc = 100;
 
         if (!cmd) {
 	        if (argc == 0)
@@ -399,17 +382,18 @@ init_usage:
         }
 
 	sockpath = control_socket();
+	atexit(cleanup_notify);
 
 	if (streq1(cmd, "list"))
-		return send_and_print('l', "");
+		reqs[maxreq++] = (struct request){ .cmd = 'l' };
 	else if (streq(cmd, "info"))
-		return send_and_print('#', "");
+		reqs[maxreq++] = (struct request){ .cmd = '#' };
 	else if (streq1(cmd, "scan") || streq(cmd, "rescan"))
-		return send_and_print('s', "");
+		reqs[maxreq++] = (struct request){ .cmd = 's' };
 	else if (streq(cmd, "Reboot"))
-		return send_and_print('R', "");
+		reqs[maxreq++] = (struct request){ .cmd = 'R' };
 	else if (streq(cmd, "Shutdown"))
-		return send_and_print('S', "");
+		reqs[maxreq++] = (struct request){ .cmd = 'S' };
 	else if (argc > 1 && (
 	    streq1(cmd, "down") ||
 	    streq1(cmd, "up") ||
@@ -423,46 +407,71 @@ init_usage:
 	    streq1(cmd, "kill") ||
 	    streq1(cmd, "1") ||
 	    streq1(cmd, "2"))) {
-		int err = 0;
-		for (int i = 1; i < argc; i++) {
-			char *service = normalize(argv[i]);
-			if (send_and_print(cmd[0], service) != 0)
-				err = 1;
-		}
-		return err;
+		for (int i = 1; i < argc; i++)
+			reqs[maxreq++] = (struct request){ .cmd = cmd[0], .service = normalize(argv[i]) };
 	} else if (argc > 1) {
-		int err = 0;
 		for (int i = 1; i < argc; i++) {
-			if (i > 1) {
-				unlink(notifypath);
-				notifypath[0] = 0;
-				close(connfd);
-			}
-
 			char *service = normalize(argv[i]);
 			if (streq(cmd, "start"))
-				err = max(err, send_and_wait('u', service, 0));
+				reqs[maxreq++] = (struct request){ .cmd = 'u', .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-start"))
-				err = max(err, send_and_wait('u', service, 1));
+				reqs[maxreq++] = (struct request){ .cmd = 'u', .service = service };
 			else if (streq(cmd, "stop"))
-				err = max(err, send_and_wait('d', service, 0));
+				reqs[maxreq++] = (struct request){ .cmd = 'd', .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-stop"))
-				err = max(err, send_and_wait('d', service, 1));
+				reqs[maxreq++] = (struct request){ .cmd = 'd', .service = service };
 			else if (streq(cmd, "restart"))
-				err = max(err, send_and_wait('r', service, 0));
+				reqs[maxreq++] = (struct request){ .cmd = 'r', .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-restart") || streq(cmd, "r"))
-				err = max(err, send_and_wait('r', service, 1));
-			else if (streq(cmd, "check"))
-				err = max(err, send_and_wait('?', service, 0));
+				reqs[maxreq++] = (struct request){ .cmd = 'r', .service = service };
 			else if (streq(cmd, "pidof"))
-				err = max(err, send_and_wait('?', service, 1));
+				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service, .wait = 1 };
+			else if (streq(cmd, "check"))
+				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service };
 			else
 				goto usage;
 		}
-		return err;
+	} else {
+usage:
+		fprintf(stderr, "usage: nitroctl COMMAND [SERVICE ...]\n");
+		exit(2);
 	}
 
-usage:
-	dprintf(2, "usage: nitroctl COMMAND [SERVICE ...]\n");
-	exit(2);
+	for (int i = 0; i < maxreq; i++) {
+		const char *sv = reqs[i].service ? reqs[i].service : "";
+		fds[i].fd = notifysock(sv, i, reqs[i].notifypath);
+		fds[i].events = POLLIN;
+		dprintf(fds[i].fd, "%c%s", reqs[i].cmd, sv);
+	}
+
+	int err = 0;
+	while (1) {
+		for (int i = 0; i < maxreq; i++)
+			if (fds[i].fd > 0)
+				goto go;
+		break;
+go: ;
+		int max_wait = -1;
+		if (timeout)
+			max_wait = max(0, timeout - time_now());
+
+		int n = poll(fds, maxreq, max_wait);
+		if (n < 0) {
+			perror("poll");
+		} else if (n == 0) {
+			fprintf(stderr, "nitroctl: action timed out\n");
+			return 2;
+		}
+		for (int i = 0; i < maxreq; i++) {
+			if (fds[i].revents & POLLIN) {
+				int r = handle_response(i);
+				if (r != -1) {
+					err = max(err, r);
+					close(fds[i].fd);
+					fds[i].fd = -1;
+				}
+			}
+		}
+	}
+	return err;
 }
