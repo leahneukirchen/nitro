@@ -425,9 +425,11 @@ init_usage:
 	    streq1(cmd, "1") ||
 	    streq1(cmd, "2"))) {
 		int err = 0;
-		for (int i = 1; i < argc; i++)
-			if (send_and_print(cmd[0], argv[i]) != 0)
+		for (int i = 1; i < argc; i++) {
+			char *service = normalize(argv[i]);
+			if (send_and_print(cmd[0], service) != 0)
 				err = 1;
+		}
 		return err;
 	} else if (argc > 1) {
 		int err = 0;
