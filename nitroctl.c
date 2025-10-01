@@ -242,16 +242,15 @@ send_and_print(char cmd, const char *service)
 char *
 normalize(char *service)
 {
-	if (!(service[0] == '/' || (service[0] == '.' && (!service[1] || service[1] == '/'))))
+	char *tail = strrchr(service, '/');
+	if (!tail)
 		return service;
+	if (access(service, F_OK) == 0)
+		return tail + 1;
 
-	char *buf = realpath(service, 0);
-	if (!buf) {
-		fprintf(stderr, "nitroctl: no such service: %s: %s\n", service, strerror(errno));
-		exit(1);
-	}
-
-	return strrchr(buf, '/') + 1;
+	fprintf(stderr, "nitroctl: no such service: %s: %s\n",
+	    service, strerror(errno));
+	exit(1);
 }
 
 #ifdef INIT_SYSTEM
