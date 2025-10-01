@@ -462,7 +462,7 @@ go: ;
 			perror("poll");
 		} else if (n == 0) {
 			fprintf(stderr, "nitroctl: action timed out\n");
-			return 2;
+			return 3;
 		}
 		for (int i = 0; i < maxreq; i++) {
 			if (fds[i].revents & POLLIN) {
