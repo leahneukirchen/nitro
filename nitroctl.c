@@ -153,7 +153,11 @@ again:
 		}
 		fprintf(stderr, "could not bind socket to '%s': %s\n",
 		    notifypath, strerror(errno));
-		exit(111);
+		if (errno == EACCES) {
+			*notifypath = 0;
+		} else {
+			exit(111);
+		}
 	}
 
 	struct sockaddr_un addr = { 0 };
@@ -459,6 +463,10 @@ usage:
 		fds[i].fd = notifysock(sv, i, reqs[i].notifypath);
 		fds[i].events = POLLIN;
 		dprintf(fds[i].fd, "%c%s", reqs[i].cmd, sv);
+		if (!*reqs[i].notifypath) {
+			close(fds[i].fd);
+			fds[i].fd = -1;
+		}
 	}
 
 	int err = 0;
