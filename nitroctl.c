@@ -62,6 +62,14 @@ max(int a, int b)
 	return a > b ? a : b;
 }
 
+volatile sig_atomic_t got_sig;
+
+static void
+on_sigint(int sig)
+{
+	got_sig = sig;
+}
+
 static const char *
 proc_state_str(enum process_state state)
 {
@@ -385,7 +393,7 @@ init_usage:
         }
 
 	sockpath = control_socket();
-	atexit(cleanup_notify);
+	signal(SIGINT, on_sigint);
 
 	if (streq1(cmd, "list"))
 		reqs[maxreq++] = (struct request){ .cmd = 'l' };
@@ -448,7 +456,7 @@ usage:
 	}
 
 	int err = 0;
-	while (1) {
+	while (!got_sig) {
 		for (int i = 0; i < maxreq; i++)
 			if (fds[i].fd > 0)
 				goto go;
@@ -460,7 +468,10 @@ go: ;
 
 		int n = poll(fds, maxreq, max_wait);
 		if (n < 0) {
-			perror("poll");
+			if (errno == EINTR)
+				err = 128 + got_sig;
+			else
+				perror("poll");
 		} else if (n == 0) {
 			fprintf(stderr, "nitroctl: action timed out\n");
 			return 3;
@@ -476,5 +487,8 @@ go: ;
 			}
 		}
 	}
+
+	cleanup_notify();
+
 	return err;
 }
