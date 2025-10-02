@@ -105,11 +105,12 @@ normalize(char *service)
 	exit(1);
 }
 
-void
+static void
 cleanup_notify()
 {
 	for (int i = 0; i < maxreq; i++)
-		unlink(reqs[i].notifypath);
+		if (*reqs[i].notifypath)
+			unlink(reqs[i].notifypath);
 }
 
 int
