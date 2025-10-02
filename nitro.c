@@ -481,6 +481,8 @@ proc_launch(int i)
 		close(alivepipefd[0]);
 		close(alivepipefd[1]);
 		services[i].state = PROC_DELAY;
+		services[i].pid = 0;
+		services[i].wstatus = -1;
 		services[i].timeout = DELAY_SPAWN_ERROR;
 		services[i].deadline = 0;
 		return;
@@ -490,16 +492,31 @@ proc_launch(int i)
 	if (read(alivepipefd[0], &status, 1) == 1) {
 		prn(2, "- nitro: can't exec %s/%s: errno=%d\n", services[i].name, "run", status);
 		close(alivepipefd[0]);
-fatal:
-		services[i].state = PROC_FATAL;
-		services[i].wstatus = -1;
-		services[i].pid = 0;
-		services[i].startstop = time_now();
-		services[i].timeout = 0;
-		services[i].deadline = 0;
 
-		process_step(i, EVNT_EXITED);
+		switch (status) {
+		case EAGAIN:
+		case EIO:
+		case EMFILE:
+		case ENOMEM:
+		case ETXTBSY:
+			// probably temporary problem, retry after delay
+			services[i].state = PROC_DELAY;
+			services[i].wstatus = -1;
+			services[i].pid = 0;
+			services[i].timeout = DELAY_SPAWN_ERROR;
+			services[i].deadline = 0;
+			break;
+		default:
+fatal:			// unlikely to go away proble, go fatal
+			services[i].state = PROC_FATAL;
+			services[i].wstatus = -1;
+			services[i].pid = 0;
+			services[i].startstop = time_now();
+			services[i].timeout = 0;
+			services[i].deadline = 0;
 
+			process_step(i, EVNT_EXITED);
+		}
 		return;
 	}
 	close(alivepipefd[0]);
