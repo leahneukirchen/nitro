@@ -42,8 +42,8 @@ struct request {
 	char notifypath[128];
 };
 
-struct request reqs[100];
-struct pollfd fds[100];
+struct request *reqs;
+struct pollfd *fds;
 int maxreq = 0;
 
 typedef int64_t deadline;               /* milliseconds since boot */
@@ -380,17 +380,23 @@ init_usage:
 		}
 
 	argc -= optind;
-        argv += optind;
+	argv += optind;
 
-        if (argc > 100)
-	        argc = 100;
+	if (cmd) {
+		argc = 1;       // INIT_SYSTEM
+	} else if (argc == 0) {
+		cmd = "list";   // default command
+		argc = 1;
+	} else {
+		cmd = argv[0];
+	}
 
-        if (!cmd) {
-	        if (argc == 0)
-		        cmd = "list";
-	        else
-		        cmd = argv[0];
-        }
+	fds = calloc(argc, sizeof fds[0]);
+	reqs = calloc(argc, sizeof reqs[0]);
+	if (!fds || !reqs) {
+		perror("malloc");
+		exit(111);
+	}
 
 	sockpath = control_socket();
 	signal(SIGINT, on_sigint);
@@ -489,6 +495,8 @@ go: ;
 	}
 
 	cleanup_notify();
+	free(fds);
+	free(reqs);
 
 	return err;
 }
