@@ -1,4 +1,4 @@
-.Dd August 27, 2025
+.Dd October 4, 2025
 .Dt NITROCTL 1
 .Os
 .Sh NAME
@@ -7,6 +7,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl t Ar timeout
+.Op Fl v
 .Ar command
 .Ar services\ ...
 .Sh DESCRIPTION
@@ -74,9 +75,19 @@ Request system reboot.
 Request system shutdown.
 .El
 .Pp
+The options are as follows:
+.Bl -tag -width 15n
+.It Fl t Ar timeout
+Exit after
+.Ar timeout
+seconds (as a decimal number)
+if the target state has not been reached.
 By default, the
 .Ar timeout
 is infinite.
+.It Fl v
+Verbose mode, print each state transition as it happens.
+.El
 .Sh ENVIRONMENT
 .Bl -tag -width Ds
 .It Ev NITRO_SOCK

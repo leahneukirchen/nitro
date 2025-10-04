@@ -45,6 +45,7 @@ struct request {
 struct request *reqs;
 struct pollfd *fds;
 int maxreq;
+int vflag;
 
 typedef int64_t deadline;               /* milliseconds since boot */
 
@@ -208,8 +209,17 @@ handle_response(int i)
 	}
 
 	int state = 0;
-	if (buf[0] >= 'A' && buf[0] <= 'Z')
+	if (buf[0] >= 'A' && buf[0] <= 'Z') {
 		state = buf[0] - 64;
+
+		switch (reqs[i].cmd) {
+		case 'u':
+		case 'd':
+		case 'r':
+			if (vflag)
+				printf("%s %s\n", proc_state_str(state), reqs[i].service);
+		}
+	}
 
 	switch (reqs[i].cmd) {
 	case 'l':
@@ -364,7 +374,7 @@ init_usage:
 
 	deadline timeout = 0;
 	int c;
-	while ((c = getopt(argc, argv, "t:")) != -1)
+	while ((c = getopt(argc, argv, "t:v")) != -1)
 		switch (c) {
 		case 't': {
 			errno = 0;
@@ -379,6 +389,7 @@ init_usage:
 
 			break;
 		}
+		case 'v': vflag++; break;
 		default:
 			goto usage;
 		}
