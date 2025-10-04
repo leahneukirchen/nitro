@@ -44,7 +44,7 @@ struct request {
 
 struct request *reqs;
 struct pollfd *fds;
-int maxreq = 0;
+int maxreq;
 
 typedef int64_t deadline;               /* milliseconds since boot */
 
@@ -73,18 +73,18 @@ on_sigint(int sig)
 static const char *
 proc_state_str(enum process_state state)
 {
-       switch (state) {
-       case PROC_DOWN: return "DOWN";
-       case PROC_SETUP: return "SETUP";
-       case PROC_STARTING: return "STARTING";
-       case PROC_UP: return "UP";
-       case PROC_ONESHOT: return "ONESHOT";
-       case PROC_SHUTDOWN: return "SHUTDOWN";
-       case PROC_RESTART: return "RESTART";
-       case PROC_FATAL: return "FATAL";
-       case PROC_DELAY: return "DELAY";
-       default: return "???";
-       }
+	switch (state) {
+	case PROC_DOWN: return "DOWN";
+	case PROC_SETUP: return "SETUP";
+	case PROC_STARTING: return "STARTING";
+	case PROC_UP: return "UP";
+	case PROC_ONESHOT: return "ONESHOT";
+	case PROC_SHUTDOWN: return "SHUTDOWN";
+	case PROC_RESTART: return "RESTART";
+	case PROC_FATAL: return "FATAL";
+	case PROC_DELAY: return "DELAY";
+	default: return "???";
+	}
 }
 
 static int
@@ -178,7 +178,7 @@ list(char *buf)
 	char name[64];
 	long pid, state, wstatus, uptime;
 	int len;
-	while (sscanf(s,  "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
+	while (sscanf(s, "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
 	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
 		s += len;
 
@@ -365,7 +365,7 @@ init_usage:
 	deadline timeout = 0;
 	int c;
 	while ((c = getopt(argc, argv, "t:")) != -1)
-		switch(c) {
+		switch (c) {
 		case 't': {
 			errno = 0;
 			char *rest = 0;
