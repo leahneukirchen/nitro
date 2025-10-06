@@ -6,6 +6,7 @@
 #endif
 
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <sys/utsname.h>
@@ -100,14 +101,64 @@ streq(const char *a, const char *b)
 	return strcmp(a, b) == 0;
 }
 
+void
+abspath(char *s, char *output, size_t maxlen)
+{
+	char *t = output;
+	if (*s != '/') {
+		char *pwd = getenv("PWD");  // use $PWD if it resolves to .
+		struct stat st1, st2;
+		if (pwd && *pwd &&
+		    stat(pwd, &st1) == 0 && stat(".", &st2) == 0 &&
+		    st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino) {
+			size_t l = strlen(pwd);
+			memcpy(output, pwd, l < maxlen - 1 ? l : maxlen - 1);
+			t = output + l;
+			*t++ = '/';
+		} else if (getcwd(output, maxlen - 1)) {
+			t = output + strlen(output);
+			*t++ = '/';
+		}
+	}
+
+	while (*s && t < output + maxlen) {
+		if ((t == output || t[-1] == '/') &&
+		    s[0] == '.' && (s[1] == '/' || s[1] == 0)) {
+			s += 1 + !!s[1];
+		} else if ((t == output || t[-1] == '/') &&
+		    s[0] == '.' && s[1] == '.' && (s[2] == '/' || s[2] == 0)) {
+			do {
+				t--;
+			} while (t > output && t[-1] != '/');
+			if (t == output)
+				*t++ = '/';
+			s += 2 + !!s[2];
+		} else if ((t > output && t[-1] == '/') && s[0] == '/') {
+			s++;
+		} else {
+			*t++ = *s++;
+		}
+	}
+
+	while (t > output + 1 && t[-1] == '/')
+		t--;
+
+	*t = 0;
+}
+
 char *
 normalize(char *service)
 {
-	char *tail = strrchr(service, '/');
+	char buf[PATH_MAX];
+	abspath(service, buf, sizeof buf);
+
+	char *tail = strrchr(buf, '/');
 	if (!tail)
 		return service;
-	if (access(service, F_OK) == 0)
-		return tail + 1;
+	if (access(buf, F_OK) == 0)
+		return strdup(tail + 1);
+	if (!strchr(service, '/'))
+		return service;
 
 	fprintf(stderr, "nitroctl: no such service: %s: %s\n",
 	    service, strerror(errno));
