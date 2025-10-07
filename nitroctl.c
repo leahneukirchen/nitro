@@ -161,8 +161,8 @@ normalize(char *service)
 		return service;
 
 	fprintf(stderr, "nitroctl: no such service: %s: %s\n",
-	    service, strerror(errno));
-	exit(1);
+	    buf, strerror(errno));
+	exit(111);
 }
 
 static void
