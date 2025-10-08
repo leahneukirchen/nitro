@@ -11,6 +11,10 @@ _arguments \
 
 case $state in
   (command)
+    if [[ $words[CURRENT] = r ]]; then
+      compadd -M 'l:|=*' fast-restart
+      return
+    fi
     _values "sv command" \
       'up[request services to be up]' \
       'down[request services to be down]' \
