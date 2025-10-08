@@ -1,0 +1,41 @@
+#compdef nitroctl
+
+# zsh completion for nitroctl
+# Leah Neukirchen <leah@vuxu.org>, public domain
+
+_arguments \
+  '-v[verbose]' \
+  '-t[timeout]:seconds' \
+  '1: :->command' \
+  '*:: :->options'
+
+case $state in
+  (command)
+    _values "sv command" \
+      up \
+      down \
+      pause cont hup alarm interrupt quit term kill 1 2
+    # above allow one-character shortcuts, complete these first
+    [[ $words[CURRENT] = [udpchaiqtk12] ]] ||
+    _values "sv command" \
+      list \
+      scan rescan \
+      {fast-,}{start,stop,restart} \
+      pidof \
+      check \
+      Reboot \
+      Shutdown
+  ;;
+  (options)
+    case $words[1] in
+      (scan|rescan|Reboot|Shutdown)
+        return 1
+      ;;
+      (*)
+        [[ $words[CURRENT] = */* ]] && _directories && ret=0
+        local -a services=( ${${${(f)"$(nitroctl list)"}#* }%% *} )
+        _describe -t services "nitro service" services
+      ;;
+    esac
+  ;;
+esac
