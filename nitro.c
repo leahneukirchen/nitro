@@ -1486,12 +1486,12 @@ handle_control_sock()
 		deadline now = time_now();
 
 		for (int i = 0; i < max_service; i++) {
-			reply += sprn(reply, replyend, "%s,%d,%d,%d,%d\n",
+			reply += sprn(reply, replyend, "%s,%d,%d,%d,%l\n",
 			    services[i].name,
 			    services[i].state,
 			    services[i].pid,
 			    services[i].wstatus,
-			    (now - services[i].startstop) / 1000);
+			    (long)((now - services[i].startstop) / 1000));
 		}
 
 		sendto(controlsock, replybuf, reply - replybuf,
