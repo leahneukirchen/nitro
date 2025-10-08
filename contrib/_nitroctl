@@ -12,19 +12,33 @@ _arguments \
 case $state in
   (command)
     _values "sv command" \
-      up \
-      down \
-      pause cont hup alarm interrupt quit term kill 1 2
+      'up[request services to be up]' \
+      'down[request services to be down]' \
+      'pause[send SIGSTOP to services]' \
+      'cont[send SIGCONT to services]' \
+      'hup[send SIGHUP to services]' \
+      'alarm[send SIGALRM to services]' \
+      'interrupt[send SIGINT to services]' \
+      'quit[send SIGQUIT to services]' \
+      'term[send SIGTERM to services]' \
+      'kill[send SIGKILL to services]' \
+      '1[send SIGUSR1 to services]' \
+      '2[send SIGUSR2 to services]'
     # above allow one-character shortcuts, complete these first
     [[ $words[CURRENT] = [udpchaiqtk12] ]] ||
     _values "sv command" \
-      list \
-      scan rescan \
-      {fast-,}{start,stop,restart} \
-      pidof \
-      check \
-      Reboot \
-      Shutdown
+      'list[print service status]' \
+      {scan,rescan}'[rescan the service list from the file system]' \
+      'start[wait for services to be UP]' \
+      'stop[wait for services to be DOWN]' \
+      'restart[wait for services to be UP after restart]' \
+      'fast-start[wait for services to be STARTING]' \
+      'fast-stop[wait for services to be SHUTDOWN]' \
+      'fast-restart[wait for services to be RESTART]' \
+      'pidof[print PIDs of services]' \
+      'check[exit with status 0 if services are running]' \
+      'Reboot[reboot the system]' \
+      'Shutdown[shutdown the system]'
   ;;
   (options)
     case $words[1] in
