@@ -1506,12 +1506,16 @@ handle_control_sock()
 		int i = find_service(buf + 1);
 		if (i < 0)
 			goto fail;
-		char replybuf[64];
+		char replybuf[128];
 		char *replyend = replybuf + sizeof replybuf;
 		char *reply = replybuf;
-		reply += sprn(reply, replyend, "%c%d\n",
+		deadline now = time_now();
+
+		reply += sprn(reply, replyend, "%c%d,%d,%l\n",
 		    64 + services[i].state,
-		    services[i].pid);
+		    services[i].pid,
+		    services[i].wstatus,
+		    (long)((now - services[i].startstop) / 1000));
 		sendto(controlsock, replybuf, reply - replybuf,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;

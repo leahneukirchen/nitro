@@ -299,13 +299,20 @@ handle_response(int i)
 			return 0;
 		break;
 	case '?':
-		if (state == PROC_STARTING || state == PROC_UP ||
-		    state == PROC_SHUTDOWN || state == PROC_RESTART) {
-			if (reqs[i].wait)
-				printf("%s", buf + 1);
-			return 0;
+		long pid, wstatus, uptime;
+		if (sscanf(buf + 1, "%ld,%ld,%ld\n", &pid, &wstatus, &uptime) != 3)
+			return 1;
+		if (reqs[i].wait == 2) {
+			printf("%s %s", proc_state_str(state), reqs[i].service);
+			if (pid)
+				printf(" (pid %ld)", pid);
+			printf(" (wstatus %ld) %lds\n", wstatus, uptime);
+		} else if (reqs[i].wait == 1 && pid) {
+			printf("%ld\n", pid);
+		} else if (!pid) {
+			return 1;
 		}
-		return 1;
+		return 0;
 	default:
 		return 0;
 	}
@@ -467,7 +474,7 @@ init_usage:
 	sockpath = control_socket();
 	signal(SIGINT, on_sigint);
 
-	if (streq1(cmd, "list"))
+	if (streq1(cmd, "list") && argc == 1)
 		reqs[maxreq++] = (struct request){ .cmd = 'l' };
 	else if (streq(cmd, "info"))
 		reqs[maxreq++] = (struct request){ .cmd = '#' };
@@ -509,6 +516,8 @@ init_usage:
 				reqs[maxreq++] = (struct request){ .cmd = 'r', .service = service };
 			else if (streq(cmd, "pidof"))
 				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service, .wait = 1 };
+			else if (streq(cmd, "list"))
+				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service, .wait = 2 };
 			else if (streq(cmd, "check"))
 				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service };
 			else
