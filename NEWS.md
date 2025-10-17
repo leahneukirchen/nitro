@@ -1,3 +1,16 @@
+## 0.5 (2025-10-17)
+
+* feature: nitroctl now sends commands in parallel
+* feature: nitroctl now has a verbose mode (-v)
+* feature: nitroctl now uses fractional seconds for -t
+* feature: nitroctl now works when no reply socket can be created
+* feature: nitroctl list can only show services asked for
+* permit creation of down services in SYS/setup
+* service startup is retried after temporary exec(2) errors
+* contrib: zsh completion
+* small bugfixes
+* more robust test suite
+
 ## 0.4.1 (2025-09-23)
 
 * feature: print execution errors for run scripts
