@@ -298,7 +298,7 @@ handle_response(int i)
 		if (state == PROC_DOWN || state == PROC_FATAL)
 			return 0;
 		break;
-	case '?':
+	case '?': ;
 		long pid, wstatus, uptime;
 		if (sscanf(buf + 1, "%ld,%ld,%ld\n", &pid, &wstatus, &uptime) != 3)
 			return 1;
