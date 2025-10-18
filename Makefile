@@ -1,16 +1,14 @@
 CFLAGS=-Os -Wall -Wno-unused-parameter -Wextra -Wwrite-strings -Wno-string-plus-int
-LDLIBS=-lm
 
 ALL=nitro nitroctl
 
 all: $(ALL)
 
-.SUFFIXES: .c .rb .FRC
+nitro: nitro.c nitro.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
-.c:
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LDLIBS)
-
-nitro nitroctl: nitro.h
+nitroctl: nitroctl.c nitro.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $< -lm
 
 debug:
 	$(MAKE) all CFLAGS="$(CFLAGS) -g -Og -DDEBUG -D_FORTIFY_SOURCE=2"
@@ -41,6 +39,8 @@ check: t.out $(TESTCASES)
 
 t.out:
 	mkdir -p t.out
+
+.SUFFIXES: .rb .FRC
 
 .rb.FRC:
 	@ruby $< > t.out/$$(basename $< .rb).out 2>&1 && echo "ok $<" || { echo "not ok $<"; exit 1; }
