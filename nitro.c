@@ -1219,16 +1219,14 @@ rescan()
 		if (!valid_service_name(name))
 			continue;
 
-		i = find_service(name);
-		if (i < 0) {
-			i = add_service(name);
-			if (i < 0)
-				continue;
+		int created = find_service(name) < 0;
+		int i = add_service(name);
+		if (i < 0)
+			continue;
 
-			if (stat_slash(name, "down", &st) == 0) {
-				services[i].state = PROC_DOWN;
-				services[i].timeout = 0;
-			}
+		if (created && stat_slash(name, "down", &st) == 0) {
+			services[i].state = PROC_DOWN;
+			services[i].timeout = 0;
 		}
 
 		services[i].seen = 1;
