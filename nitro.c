@@ -296,6 +296,7 @@ panic()
 }
 
 #define fatal(...) do { prn(2, "- nitro: " __VA_ARGS__); panic(); } while (0)
+#define fatal_no_panic(...) do { prn(2, "- nitro: " __VA_ARGS__); exit(111); } while (0)
 #ifdef DEBUG
 #define dprn(...) prn(2, __VA_ARGS__)
 #else
@@ -1354,7 +1355,7 @@ open_control_socket()
 	if (connect(checksock, (struct sockaddr *)&addr, sizeof addr) == 0)
 		fatal("socket in use outside of nitro\n");
 	else if (errno == EPROTOTYPE)
-		fatal("socket already in use\n");
+		fatal_no_panic("socket already in use\n");
 	else if (errno == ECONNREFUSED) // stale socket, remove
 		unlink(control_socket_path);
 	// else if (errno == ENOENT) // socket doesn't exist, good
