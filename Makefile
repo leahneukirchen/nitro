@@ -14,8 +14,8 @@ debug:
 	$(MAKE) all CFLAGS="$(CFLAGS) -g -Og -DDEBUG -D_FORTIFY_SOURCE=2"
 
 tiny:
-	$(MAKE) all CFLAGS="-Os -Wl,--gc-sections -fno-stack-protector \
-		-fno-stack-clash-protection -fno-asynchronous-unwind-tables" \
+	$(MAKE) all CFLAGS="-Os -ffunction-sections -fdata-sections -Wl,--gc-sections \
+		 -fno-stack-protector -fno-stack-clash-protection -fno-asynchronous-unwind-tables" \
 		LDFLAGS="-static"
 
 clean: FRC
