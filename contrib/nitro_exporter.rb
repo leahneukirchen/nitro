@@ -31,6 +31,11 @@ class NitroExporter
         r.write %Q|nitro_services{hostname=#{HOSTNAME_DUMP}} #{$2}\n|
         r.write %Q|nitro_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$3}\n|
         r.write %Q|nitro_service_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$4}\n|
+
+        size = File.stat("/proc/#{$1}/fd").size rescue 0
+        if size > 0
+          r.write %Q|nitro_process_open_fds{hostname=#{HOSTNAME_DUMP}} #{size}\n|
+        end
       end
     end
 
