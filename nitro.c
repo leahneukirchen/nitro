@@ -103,11 +103,6 @@ enum process_events {
 	EVNT_FINISHED,          /* finish script exited */
 };
 
-/* max fd usage: 500 services (250 loggers) = 1000 fd for log pipes + const. */
-#ifndef MAXSV
-#define MAXSV 500
-#endif
-
 struct service {
 	char name[64];
 	deadline startstop;

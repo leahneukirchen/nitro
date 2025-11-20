@@ -223,21 +223,41 @@ again:
 	return connfd;
 }
 
+struct service {
+	char name[64];
+	long pid, state, wstatus, uptime;
+} services[MAXSV];
+
+int
+svnamecmp(const void *a, const void *b)
+{
+	return strcmp(((struct service *)a)->name, ((struct service *)b)->name);
+}
+
 void
 list(char *buf)
 {
 	char *s = buf;
-	char name[64];
-	long pid, state, wstatus, uptime;
+	int max_service = 0;
 	int len;
-	while (sscanf(s, "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
-	    name, &state, &pid, &wstatus, &uptime, &len) == 5) {
-		s += len;
 
-		printf("%s %s", proc_state_str(state), name);
-		if (pid)
-			printf(" (pid %ld)", pid);
-		printf(" (wstatus %ld) %lds\n", wstatus, uptime);
+	while (max_service < MAXSV && sscanf(s, "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
+	    services[max_service].name, &services[max_service].state,
+	    &services[max_service].pid, &services[max_service].wstatus,
+	    &services[max_service].uptime, &len) == 5) {
+		s += len;
+		max_service++;
+	}
+
+	qsort(services, max_service, sizeof services[0], svnamecmp);
+
+	for (int i = 0; i < max_service; i++) {
+		printf("%s %s",
+		    proc_state_str(services[i].state), services[i].name);
+		if (services[i].pid)
+			printf(" (pid %ld)", services[i].pid);
+		printf(" (wstatus %ld) %lds\n",
+		    services[i].wstatus, services[i].uptime);
 	}
 }
 

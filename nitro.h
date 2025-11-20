@@ -9,6 +9,11 @@
 
 static char default_sock[256] = RUNDIR "/nitro/nitro.sock";
 
+/* max fd usage: 500 services (250 loggers) = 1000 fd for log pipes + const. */
+#ifndef MAXSV
+#define MAXSV 500
+#endif
+
 enum process_state {
 	PROC_DOWN = 1,
 	PROC_SETUP,
