@@ -1,3 +1,11 @@
+## 0.6 (2025-12-12)
+
+* feature: nitroctl: sort "list" output by service name
+* feature: improvements to output on shutdown
+* feature: panic handler is not run when socket is in use
+  (accidentally running nitro on a booted system)
+* bugfix: changes to log links are now picked up on rescan and restart
+
 ## 0.5 (2025-10-17)
 
 * feature: nitroctl now sends commands in parallel
