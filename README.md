@@ -85,8 +85,9 @@ You may find runit's `chpst` useful when writing `run` scripts.
 
 Service directories ending in `@` are considered service templates,
 and are ignored as services, however you can instantiate them into
-parametrized services by symlinks (either in the service directory or
-as a `log` symlink), or start them manually using `nitroctl`.
+parametrized services by using symlinks with a parameter after the `@`
+(either in the service directory or as a `log` symlink), or start them
+manually using `nitroctl`.
 
 The part after the `@`, the parameter, is passed to the scripts as
 first argument.
@@ -95,6 +96,8 @@ For example, if you have a script `agetty@/run` and a symlink
 `agetty@tty1` -> `agetty@`, nitro will spawn `agetty@/run tty1`.  Upon
 running `nitroctl up agetty@tty2`, nitro will spawn `agetty@/run
 tty2`, even if it does not exist in the service directory.
+Likewise, a symlink `log` -> `../mylogger@foo` will spawn
+`mylogger@/run foo` and use it as a logger.
 
 Parametrized services are removed on `rescan` if they are DOWN and not
 referred to by other services.
