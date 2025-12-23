@@ -1368,7 +1368,7 @@ open_control_socket()
 	// ignore other errors, fail below.
 	close(checksock);
 
-	controlsock = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	controlsock = socket(AF_UNIX, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (controlsock < 0)
 		fatal("control socket: errno=%d", errno);
 
