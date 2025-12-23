@@ -549,18 +549,34 @@ usage:
 		exit(2);
 	}
 
+	int err = 0;
+
 	for (int i = 0; i < maxreq; i++) {
 		const char *sv = reqs[i].service ? reqs[i].service : "";
 		fds[i].fd = notifysock(sv, i, reqs[i].notifypath);
 		fds[i].events = POLLIN;
-		dprintf(fds[i].fd, "%c%s", reqs[i].cmd, sv);
+again:
+		int r = dprintf(fds[i].fd, "%c%s", reqs[i].cmd, sv);
+		if (r < 0) {
+			fprintf(stderr, "dprintf to %s: %s\n",
+			    sockpath, strerror(errno));
+
+			// detect full UNIX DGRAM sockets on BSD, these can not
+			// be polled for
+			if (errno == ENOBUFS || errno == EINTR) {
+				sleep(1);
+				goto again;
+			}
+
+			err = 4;
+			*reqs[i].notifypath = 0;
+		}
 		if (!*reqs[i].notifypath) {
 			close(fds[i].fd);
 			fds[i].fd = -1;
 		}
 	}
 
-	int err = 0;
 	while (!got_sig) {
 		for (int i = 0; i < maxreq; i++)
 			if (fds[i].fd > 0)
