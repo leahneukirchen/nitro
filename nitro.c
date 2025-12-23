@@ -1104,10 +1104,16 @@ refresh_log:
 
 	char log_target[PATH_MAX];
 	char log_link[PATH_MAX];
+	char s = 0;
 	char *instance = strchr(name, '@');
-	if (instance)
-		*(instance + 1) = 0;
+	if (instance) {
+		instance++;
+		s = *instance;
+		*instance = 0;
+	}
 	sprn(log_link, log_link + sizeof log_link, "%s/log", name);
+	if (instance)
+		*instance = s;
 
 	ssize_t r = readlink(log_link, log_target, sizeof log_target - 1);
 	if (r < 0) {
@@ -1123,6 +1129,11 @@ refresh_log:
 			target_name++;
 		else
 			target_name = log_target;
+
+		size_t n = strlen(target_name);
+		if (target_name[n-1] == '@')
+			sprn(target_name + n, log_target + sizeof log_target,
+			    "%s", instance ? instance : name);
 
 		services[i].log_out[1] = PENDING_FD;
 		int j = add_service(target_name);

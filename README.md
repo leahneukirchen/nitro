@@ -99,6 +99,12 @@ tty2`, even if it does not exist in the service directory.
 Likewise, a symlink `log` -> `../mylogger@foo` will spawn
 `mylogger@/run foo` and use it as a logger.
 
+Additionally, if `log` directly points to a service template, it is
+instantiated with the parameter of the service, or the name of the
+service.  For example, `sv_a/log` -> `../mylogger@` will use
+`mylogger@sv_a` as a logger, and `sv@/log` -> `../mylogger@' will use
+`mylogger@foo` when you start `sv@foo`.
+
 Parametrized services are removed on `rescan` if they are DOWN and not
 referred to by other services.
 
