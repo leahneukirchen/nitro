@@ -34,6 +34,7 @@
 #include "nitro.h"
 
 const char *sockpath;
+struct sockaddr_un sockaddr;
 
 struct request {
 	char cmd;
@@ -166,11 +167,14 @@ normalize(char *service)
 }
 
 static void
-cleanup_notify()
+close_sock(int i)
 {
-	for (int i = 0; i < maxreq; i++)
-		if (*reqs[i].notifypath)
-			unlink(reqs[i].notifypath);
+	if (fds[i].fd >= 0)
+		close(fds[i].fd);
+	fds[i].fd = -1;
+	if (*reqs[i].notifypath)
+		unlink(reqs[i].notifypath);
+	*reqs[i].notifypath = 0;
 }
 
 int
@@ -212,14 +216,6 @@ again:
 		}
 	}
 
-	struct sockaddr_un addr = { 0 };
-	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, sockpath, sizeof addr.sun_path - 1);
-	if (connect(connfd, (struct sockaddr *)&addr, sizeof addr) < 0) {
-		fprintf(stderr, "nitroctl: could not connect to '%s', is nitro started?\n", sockpath);
-		exit(111);
-	}
-
 	return connfd;
 }
 
@@ -259,6 +255,34 @@ list(char *buf)
 		printf(" (wstatus %ld) %lds\n",
 		    services[i].wstatus, services[i].uptime);
 	}
+}
+
+int
+handle_request(int i)
+{
+	const char *sv = reqs[i].service ? reqs[i].service : "";
+
+	char buf[256];
+	int buflen = snprintf(buf, sizeof buf, "%c%s", reqs[i].cmd, sv);
+
+	int r = sendto(fds[i].fd, buf, buflen,
+	    MSG_DONTWAIT, (struct sockaddr *)&sockaddr, sizeof sockaddr);
+
+	if (r < 0) {
+		// On BSD, UNIX DGRAM sockets can be full, but have POLLOUT.
+		// On Linux, DGRAM sockets can block/EAGAIN, but have POLLOUT.
+		if (errno == ENOBUFS || errno == EAGAIN) {
+			return -1;
+		} else {
+			fprintf(stderr, "sendto to %s: %s\n",
+			    sockpath, strerror(errno));
+			close_sock(i);
+			return 4;
+		}
+	}
+
+	fds[i].events = POLLIN;
+	return 0;
 }
 
 int
@@ -492,6 +516,9 @@ init_usage:
 	}
 
 	sockpath = control_socket();
+	sockaddr.sun_family = AF_UNIX;
+	strncpy(sockaddr.sun_path, sockpath, sizeof sockaddr.sun_path - 1);
+
 	signal(SIGINT, on_sigint);
 
 	if (streq1(cmd, "list") && argc == 1)
@@ -549,33 +576,15 @@ usage:
 		exit(2);
 	}
 
-	int err = 0;
-
 	for (int i = 0; i < maxreq; i++) {
 		const char *sv = reqs[i].service ? reqs[i].service : "";
 		fds[i].fd = notifysock(sv, i, reqs[i].notifypath);
-		fds[i].events = POLLIN;
-again:
-		int r = dprintf(fds[i].fd, "%c%s", reqs[i].cmd, sv);
-		if (r < 0) {
-			fprintf(stderr, "dprintf to %s: %s\n",
-			    sockpath, strerror(errno));
-
-			// detect full UNIX DGRAM sockets on BSD, these can not
-			// be polled for
-			if (errno == ENOBUFS || errno == EINTR) {
-				sleep(1);
-				goto again;
-			}
-
-			err = 4;
-			*reqs[i].notifypath = 0;
-		}
-		if (!*reqs[i].notifypath) {
-			close(fds[i].fd);
-			fds[i].fd = -1;
-		}
+		fds[i].events = POLLOUT;
+		if (!*reqs[i].notifypath)
+			close_sock(i);
 	}
+
+	int err = 0;
 
 	while (!got_sig) {
 		for (int i = 0; i < maxreq; i++)
@@ -593,23 +602,40 @@ go: ;
 				err = 128 + got_sig;
 			else
 				perror("poll");
+			break;
 		} else if (n == 0) {
 			fprintf(stderr, "nitroctl: action timed out\n");
-			return 3;
+			err = 3;
+			break;
 		}
+
 		for (int i = 0; i < maxreq; i++) {
-			if (fds[i].revents & POLLIN) {
+			if (fds[i].revents & POLLOUT) {
+				int r = handle_request(i);
+				if (r == -1) {
+					struct timespec ts = {
+						.tv_sec = 0,
+						.tv_nsec = 10000000L
+					};
+					nanosleep(&ts, 0);
+					break;
+				} else if (r > 0) {
+					err = max(err, r);
+					close_sock(i);
+				}
+			} else if (fds[i].revents & POLLIN) {
 				int r = handle_response(i);
 				if (r != -1) {
 					err = max(err, r);
-					close(fds[i].fd);
-					fds[i].fd = -1;
+					close_sock(i);
 				}
 			}
 		}
 	}
 
-	cleanup_notify();
+	for (int i = 0; i < maxreq; i++)
+		close_sock(i);
+
 	free(fds);
 	free(reqs);
 
