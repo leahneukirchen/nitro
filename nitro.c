@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
@@ -218,14 +219,8 @@ sprn(char *out, char *oute, const char *fmt, ...)
 	for (const char *s = fmt; *s && out < oute; s++) {
 		if (*s == '%') {
 			s++;
-			if (*s == 'd')
-				out = steprl(out, oute, (int)va_arg(ap, int));
-			else if (*s == 'l')
-				out = steprl(out, oute, (long)va_arg(ap, long));
-			else if (*s == 's')
+			if (*s == 's')
 				out = stecpy(out, oute, va_arg(ap, char *));
-			else if (*s == 'c')
-				*out++ = va_arg(ap, int);
 			else
 				abort();
 		} else {
@@ -654,24 +649,6 @@ proc_finish(int i)
 	services[i].deadline = 0;
 
 	notify(i);
-}
-
-int
-charsig(char c)
-{
-	switch (c) {
-	case 'p': return SIGSTOP;
-	case 'c': return SIGCONT;
-	case 'h': return SIGHUP;
-	case 'a': return SIGALRM;
-	case 'i': return SIGINT;
-	case 'q': return SIGQUIT;
-	case '1': return SIGUSR1;
-	case '2': return SIGUSR2;
-	case 't': return SIGTERM;
-	case 'k': return SIGKILL;
-	default: return 0;
-	}
 }
 
 int
@@ -1396,8 +1373,11 @@ void
 notify(int i)
 {
 	char notifybuf[128];
-	sprn(notifybuf, notifybuf + sizeof notifybuf, "%c%s\n",
-	    64 + services[i].state, services[i].name);
+	unsigned char len = strlen(services[i].name);
+	notifybuf[0] = 0;
+	notifybuf[1] = len;
+	notifybuf[2] = services[i].state;
+	stecpy(notifybuf + 3, notifybuf + sizeof notifybuf, services[i].name);
 
 	struct dirent *ent;
 	rewinddir(notifydir);
@@ -1414,7 +1394,7 @@ notify(int i)
 			sprn(addr.sun_path, addr.sun_path + sizeof addr.sun_path,
 			    "%s/%s", notifypath, name);
 
-			if (sendto(controlsock, notifybuf, strlen(notifybuf),
+			if (sendto(controlsock, notifybuf, len + 3,
 			    MSG_DONTWAIT, (struct sockaddr *)&addr, sizeof addr) < 0) {
 				if (errno == ECONNREFUSED) {
 					// remove stale socket
@@ -1455,10 +1435,26 @@ handle_ready_pipe(int j)
 	}
 }
 
+#define SPAT_U8(tag, value) \
+		*reply++ = 1; \
+		*reply++ = 0; \
+		*reply++ = tag; \
+		*reply++ = ((uint8_t)value);
+
+#define SPAT_U32(tag, value) \
+		*reply++ = 4; \
+		*reply++ = 0; \
+		*reply++ = tag; \
+		*reply++ = ((uint32_t)value); \
+		*reply++ = ((uint32_t)value) >> 8; \
+		*reply++ = ((uint32_t)value) >> 16; \
+		*reply++ = ((uint32_t)value) >> 24;
+
 void
 handle_control_sock()
 {
-	char buf[256];
+	enum tags status = T_OK;
+	unsigned char buf[256];
 	struct sockaddr_un src;
 	socklen_t srclen = sizeof src;
 	ssize_t r = recvfrom(controlsock, buf, sizeof buf,
@@ -1471,16 +1467,22 @@ handle_control_sock()
 		return;
 	}
 
-	if (r == 0)
+	if (r < 3)
 		return;
 
-	buf[r] = 0;
-	// chop trailing newline
-	if (buf[r - 1] == '\n')
-		buf[r - 1] = 0;
+	// currently only the first command per socket is parsed
+	int len = buf[0] | (buf[1] << 8);
+	if (len > r + 3)
+		return;
+	enum tags cmd = buf[2];
+	const char *sv = "";
+	if (len < 64) {
+		sv = (char *)buf + 3;
+		buf[3 + len] = 0;
+	}
 
-	switch (buf[0]) {
-	case 'l':
+	switch (cmd) {
+	case T_CMD_LIST:
 	{
 		if (srclen == 0)
 			return;
@@ -1490,120 +1492,135 @@ handle_control_sock()
 		char *reply = replybuf;
 		deadline now = time_now();
 
-		for (int i = 0; i < max_service; i++) {
-			reply += sprn(reply, replyend, "%s,%d,%d,%d,%l\n",
-			    services[i].name,
-			    services[i].state,
-			    services[i].pid,
-			    services[i].wstatus,
-			    (long)((now - services[i].startstop) / 1000));
+		for (int i = 0; i < max_service && replyend - replybuf > 128; i++) {
+			*reply++ = 0xff;
+			*reply++ = 0xff;
+			*reply++ = T_SERVICE;
+
+			char *lenpos = reply;
+			*reply++ = 0;
+			*reply++ = 0;
+			*reply++ = T_NAME;
+			char *s = services[i].name;
+			while ((*reply++ = *s++))
+				;
+			*lenpos = s - services[i].name;
+
+			SPAT_U8(T_STATE, services[i].state);
+			SPAT_U32(T_PID, services[i].pid);
+			SPAT_U32(T_WSTATUS, services[i].wstatus);
+			uint32_t uptime = (now - services[i].startstop) / 1000;
+			SPAT_U32(T_UPTIME, uptime);
+
+			*reply++ = 0xfe;
+			*reply++ = 0xff;
+			*reply++ = T_SERVICE;
 		}
 
 		sendto(controlsock, replybuf, reply - replybuf,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
-	case '?':
+	case T_CMD_QUERY:
 	{
 		if (srclen == 0)
 			return;
 
-		int i = find_service(buf + 1);
+		int i = find_service(sv);
 		if (i < 0)
 			goto fail;
 		char replybuf[128];
-		char *replyend = replybuf + sizeof replybuf;
 		char *reply = replybuf;
 		deadline now = time_now();
 
-		reply += sprn(reply, replyend, "%c%d,%d,%l\n",
-		    64 + services[i].state,
-		    services[i].pid,
-		    services[i].wstatus,
-		    (long)((now - services[i].startstop) / 1000));
+		SPAT_U8(T_STATE, services[i].state);
+		SPAT_U32(T_PID, services[i].pid);
+		SPAT_U32(T_WSTATUS, services[i].wstatus);
+		uint32_t uptime = (now - services[i].startstop) / 1000;
+		SPAT_U32(T_UPTIME, uptime);
+
 		sendto(controlsock, replybuf, reply - replybuf,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
-	case '#':
+	case T_CMD_INFO:
 	{
 		if (srclen == 0)
 			return;
 
 		char replybuf[64];
-		char *replyend = replybuf + sizeof replybuf;
 		char *reply = replybuf;
-		reply += sprn(reply, replyend, "# %d %d %l %l\n",
-		    getpid(),
-		    max_service,
-		    total_reaps,
-		    total_sv_reaps);
+
+		pid_t pid = getpid();
+		SPAT_U32(T_NITRO_PID, pid);
+		SPAT_U32(T_PID, pid);
+		SPAT_U32(T_MAX_SERVICE, max_service);
+		SPAT_U32(T_TOTAL_REAPS, total_reaps);
+		SPAT_U32(T_TOTAL_SV_REAPS, total_sv_reaps);
 		sendto(controlsock, replybuf, reply - replybuf,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 		return;
 	}
-	case 'u':
-	case 'd':
-	case 'r':
+	case T_CMD_UP:
+	case T_CMD_DOWN:
+	case T_CMD_RESTART:
 	{
 		struct stat st;
 
-		if (!buf[1])
+		if (len == 0)
 			goto fail;
 
 		int i;
-		if ((buf[0] != 'd' || find_service("SYS") != -1) &&
-		    valid_service_name(buf + 1) &&
-		    stat_slash_to_at(buf + 1, ".", &st) == 0)
-			i = add_service(buf + 1);
+		if ((cmd != T_CMD_DOWN || find_service("SYS") != -1) &&
+		    valid_service_name(sv) &&
+		    stat_slash_to_at(sv, ".", &st) == 0)
+			i = add_service(sv);
 		else
-			i = find_service(buf + 1);
+			i = find_service(sv);
 		if (i < 0)
 			goto fail;
 		services[i].seen = 1;
 
-		if (buf[0] == 'u')
+		if (cmd == T_CMD_UP)
 			process_step(i, EVNT_WANT_UP);
-		else if (buf[0] == 'd')
+		else if (cmd == T_CMD_DOWN)
 			process_step(i, EVNT_WANT_DOWN);
-		else if (buf[0] == 'r')
+		else if (cmd == T_CMD_RESTART)
 			process_step(i, EVNT_WANT_RESTART);
 
 		notify(i);
 
 		goto ok;
 	}
-	case 's':
+	case T_CMD_RESCAN:
 		want_rescan = 1;
 		goto ok;
-	case 'S':
+	case T_CMD_SHUTDOWN:
 		want_shutdown = 1;
 		goto ok;
-	case 'R':
+	case T_CMD_REBOOT:
 		want_reboot = 1;
 		goto ok;
-	default:
-		if (!charsig(buf[0]))
+	case T_CMD_SIGNAL:
+		if (len != 1)
 			goto fail;
-		int i = find_service(buf + 1);
+		int i = find_service(sv + 1);
 		if (i >= 0 && services[i].pid) {
-			kill(services[i].pid, charsig(buf[0]));
+			kill(services[i].pid, (unsigned char)sv[0]);
 			goto ok;
 		}
 		goto fail;
+	default:
+		status = T_ENOSYS;
+		goto ok;
 	}
 
+fail:
+	status = T_ESRCH;
 ok:
 	if (srclen > 0) {
-		char reply[] = "ok\n";
-		sendto(controlsock, reply, sizeof reply - 1,
-		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
-	}
-	return;
-fail:
-	if (srclen > 0) {
-		char reply[] = "error\n";
-		sendto(controlsock, reply, sizeof reply - 1,
+		unsigned char reply[] = { 0, 0, status };
+		sendto(controlsock, reply, sizeof reply,
 		    MSG_DONTWAIT, (struct sockaddr *)&src, srclen);
 	}
 }

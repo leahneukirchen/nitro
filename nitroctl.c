@@ -37,10 +37,10 @@ const char *sockpath;
 struct sockaddr_un sockaddr;
 
 struct request {
-	char cmd;
-	char reply;
-	char wait;
+	unsigned char cmd;
+	int wait;
 	char *service;
+	unsigned char signal;
 	char notifypath[128];
 };
 
@@ -221,7 +221,7 @@ again:
 
 struct service {
 	char name[64];
-	long pid, state, wstatus, uptime;
+	uint32_t pid, state, wstatus, uptime;
 } services[MAXSV];
 
 int
@@ -230,19 +230,88 @@ svnamecmp(const void *a, const void *b)
 	return strcmp(((struct service *)a)->name, ((struct service *)b)->name);
 }
 
-void
-list(char *buf)
+#define SPAT_OPEN (-2)
+#define SPAT_CLOSE (-1)
+static int
+spat_len(unsigned char *buf)
 {
-	char *s = buf;
-	int max_service = 0;
-	int len;
+	uint16_t len = buf[0] | (buf[1] << 8);
+	if (len == 0xffff)
+		return SPAT_OPEN;
+	if (len == 0xfffe)
+		return SPAT_CLOSE;
+	return len;
+}
 
-	while (max_service < MAXSV && sscanf(s, "%63[^#/,],%ld,%ld,%ld,%ld\n%n",
-	    services[max_service].name, &services[max_service].state,
-	    &services[max_service].pid, &services[max_service].wstatus,
-	    &services[max_service].uptime, &len) == 5) {
-		s += len;
-		max_service++;
+static uint8_t
+spat_tag(unsigned char *buf)
+{
+	return buf[2];
+}
+
+static unsigned char *
+spat_skip(unsigned char *buf)
+{
+	int len = spat_len(buf);
+	return buf + 3 + (len >= 0 ? len : 0);
+}
+
+static unsigned char *
+spat_skip_to_end(unsigned char *buf, unsigned char *bufe)
+{
+	uint8_t tag = spat_tag(buf);
+	while (buf < bufe) {
+		if (spat_len(buf) == SPAT_CLOSE && spat_tag(buf) == tag)
+			return spat_skip(buf);
+		buf = spat_skip(buf);
+	}
+	return bufe;
+}
+
+static int
+spat_decode_u32(unsigned char *buf, unsigned char tag, uint32_t *dst)
+{
+	if (spat_tag(buf) != tag || spat_len(buf) != 4)
+		return 0;
+
+	buf += 3;
+
+	*dst = ((uint32_t)buf[0] << 0) |
+               ((uint32_t)buf[1] << 8) |
+               ((uint32_t)buf[2] << 16) |
+               ((uint32_t)buf[3] << 24);
+	return 1;
+}
+
+
+void
+list(unsigned char *buf,  unsigned char *bufe)
+{
+	int max_service = 0;
+
+	while (buf < bufe && max_service < MAXSV) {
+		if (spat_tag(buf) != T_SERVICE && spat_len(buf) != SPAT_OPEN) {
+			buf = spat_skip_to_end(buf, bufe);
+			continue;
+		}
+		buf = spat_skip(buf);
+
+		while (buf < bufe) {
+			if (spat_decode_u32(buf, T_PID, &services[max_service].pid) ||
+			    spat_decode_u32(buf, T_WSTATUS, &services[max_service].wstatus) ||
+			    spat_decode_u32(buf, T_UPTIME, &services[max_service].uptime))
+				;
+			else if (spat_tag(buf) == T_STATE && spat_len(buf) == 1)
+				services[max_service].state = buf[3];
+			else if (spat_tag(buf) == T_NAME && spat_len(buf) < 64) {
+				memcpy(services[max_service].name, buf + 3, spat_len(buf));
+				services[max_service].name[spat_len(buf)] = 0;
+			} else if (spat_tag(buf) == T_SERVICE && spat_len(buf) == SPAT_CLOSE) {
+				max_service++;
+				break;
+			}
+			buf = spat_skip(buf);
+		}
 	}
 
 	qsort(services, max_service, sizeof services[0], svnamecmp);
@@ -251,8 +320,8 @@ list(char *buf)
 		printf("%s %s",
 		    proc_state_str(services[i].state), services[i].name);
 		if (services[i].pid)
-			printf(" (pid %ld)", services[i].pid);
-		printf(" (wstatus %ld) %lds\n",
+			printf(" (pid %d)", services[i].pid);
+		printf(" (wstatus %d) %ds\n",
 		    services[i].wstatus, services[i].uptime);
 	}
 }
@@ -262,10 +331,24 @@ handle_request(int i)
 {
 	const char *sv = reqs[i].service ? reqs[i].service : "";
 
-	char buf[256];
-	int buflen = snprintf(buf, sizeof buf, "%c%s", reqs[i].cmd, sv);
+	char buffer[256];
+	char *buf = buffer;
 
-	int r = sendto(fds[i].fd, buf, buflen,
+	if (strlen(sv) > 64) {
+		fprintf(stderr, "nitroctl: service name too long: %s\n", sv);
+		return 111;
+	}
+
+	int len = strlen(sv);
+	*buf++ = len + !!(reqs[i].cmd == T_CMD_SIGNAL);
+	*buf++ = 0;
+	*buf++ = reqs[i].cmd;
+	if (reqs[i].cmd == T_CMD_SIGNAL)
+		*buf++ = reqs[i].signal;
+	memcpy(buf, sv, len);
+	buf += len;
+
+	int r = sendto(fds[i].fd, buffer, buf - buffer,
 	    MSG_DONTWAIT, (struct sockaddr *)&sockaddr, sizeof sockaddr);
 
 	if (r < 0) {
@@ -289,70 +372,104 @@ int
 handle_response(int i)
 {
 	ssize_t rd;
-	char buf[4096];
-	rd = read(fds[i].fd, buf, sizeof buf - 1);
+	unsigned char buffer[4096];
+	rd = read(fds[i].fd, buffer, sizeof buffer);
 	if (rd < 0) {
 		perror("read");
 		return 111;
 	}
-	buf[rd] = 0;
+	unsigned char *buf = buffer;
+	unsigned char *bufe = buffer + rd;
 
-	if (reqs[i].cmd != 'l' && reqs[i].cmd != '#' && buf[0] == 'e') {
+	if (spat_tag(buf) == T_ESRCH) {
 		fprintf(stderr, "nitroctl: no such service '%s'\n",
 		    reqs[i].service);
 		return 111;
+	} else if (spat_tag(buf) == T_ENOSYS) {
+		fprintf(stderr, "nitroctl: command not implemented in server\n");
+		return 111;
 	}
 
-	int state = 0;
-	if (buf[0] >= 'A' && buf[0] <= 'Z') {
-		state = buf[0] - 64;
+	if (spat_tag(buf) == T_OK)
+		buf = spat_skip(buf);
 
-		switch (reqs[i].cmd) {
-		case 'u':
-		case 'd':
-		case 'r':
-			if (vflag)
-				printf("%s %s\n", proc_state_str(state), reqs[i].service);
-		}
+	int state = 0;
+	if (spat_tag(buf) >= PROC_DOWN && spat_tag(buf) <= PROC_DELAY) {
+		state = spat_tag(buf);
+
+		if (vflag)
+			switch (reqs[i].cmd) {
+			case T_CMD_UP:
+			case T_CMD_DOWN:
+			case T_CMD_RESTART:
+				printf("%s %s\n", proc_state_str(state),
+				    reqs[i].service);
+			}
 	}
 
 	switch (reqs[i].cmd) {
-	case 'l':
-		list(buf);
+	case T_CMD_LIST:
+		list(buf, buf + rd);
 		return 0;
-	case '#':
-		printf("%s", buf);
+	case T_CMD_INFO: ;
+		uint32_t u;
+		while (buf < bufe) {
+			if (spat_decode_u32(buf, T_NITRO_PID, &u))
+				printf("nitro_pid %d\n", u);
+			else if (spat_decode_u32(buf, T_MAX_SERVICE, &u))
+				printf("max_service %d\n", u);
+			else if (spat_decode_u32(buf, T_TOTAL_REAPS, &u))
+				printf("total_reaps %d\n", u);
+			else if (spat_decode_u32(buf, T_TOTAL_SV_REAPS, &u))
+				printf("total_sv_reaps %d\n", u);
+			else
+				printf("# unknown tag 0x%02x\n", spat_tag(buf));
+
+			buf = spat_skip(buf);
+		}
 		return 0;
-	case 'u':
-	case 'r':
-		if (!reqs[i].wait && state == PROC_STARTING)
+	case T_CMD_UP:
+	case T_CMD_RESTART:
+		if (reqs[i].wait < 0)
+			return 0;
+		if (reqs[i].wait == 0 && state == PROC_STARTING)
 			return 0;
 		if (state == PROC_UP || state == PROC_ONESHOT)
 			return 0;
 		if (state == PROC_FATAL) {
 			fprintf(stderr,
 			    "nitroctl: failed to %sstart '%s'\n",
-			    reqs[i].cmd == 'u' ? "" : "re", reqs[i].service);
+			    reqs[i].cmd == T_CMD_UP ? "" : "re", reqs[i].service);
 			return 1;
 		}
 		break;
-	case 'd':
+	case T_CMD_DOWN:
 		if (!reqs[i].wait && state == PROC_SHUTDOWN)
 			return 0;
 		if (state == PROC_DOWN || state == PROC_FATAL)
 			return 0;
 		break;
-	case '?': ;
-		long pid, wstatus, uptime;
-		if (sscanf(buf + 1, "%ld,%ld,%ld\n", &pid, &wstatus, &uptime) != 3)
-			return 1;
+	case T_CMD_QUERY: ;
+		uint32_t pid = 0, wstatus = 0, uptime = 0;
+
+		while (buf < bufe) {
+			if (spat_decode_u32(buf, T_PID, &pid) ||
+			    spat_decode_u32(buf, T_WSTATUS, &wstatus) ||
+			    spat_decode_u32(buf, T_UPTIME, &uptime))
+				;
+			else if (spat_tag(buf) == T_STATE && spat_len(buf) == 1)
+				state = buf[4];
+
+			buf = spat_skip(buf);
+		}
+
 		if (reqs[i].wait == 2) {
 			printf("%s %s", proc_state_str(state), reqs[i].service);
 			if (pid)
-				printf(" (pid %ld)", pid);
-			printf(" (wstatus %ld) %lds\n", wstatus, uptime);
+				printf(" (pid %d)", pid);
+			printf(" (wstatus %d) %ds\n", (int)wstatus, uptime);
 		} else if (reqs[i].wait == 1 && pid) {
-			printf("%ld\n", pid);
+			printf("%d\n", pid);
 		} else if (!pid) {
 			return 1;
 		}
@@ -522,18 +639,16 @@ init_usage:
 	signal(SIGINT, on_sigint);
 
 	if (streq1(cmd, "list") && argc == 1)
-		reqs[maxreq++] = (struct request){ .cmd = 'l' };
+		reqs[maxreq++] = (struct request){ .cmd = T_CMD_LIST };
 	else if (streq(cmd, "info"))
-		reqs[maxreq++] = (struct request){ .cmd = '#' };
+		reqs[maxreq++] = (struct request){ .cmd = T_CMD_INFO };
 	else if (streq1(cmd, "scan") || streq(cmd, "rescan"))
-		reqs[maxreq++] = (struct request){ .cmd = 's' };
+		reqs[maxreq++] = (struct request){ .cmd = T_CMD_RESCAN };
 	else if (streq(cmd, "Reboot"))
-		reqs[maxreq++] = (struct request){ .cmd = 'R' };
+		reqs[maxreq++] = (struct request){ .cmd = T_CMD_REBOOT };
 	else if (streq(cmd, "Shutdown"))
-		reqs[maxreq++] = (struct request){ .cmd = 'S' };
+		reqs[maxreq++] = (struct request){ .cmd = T_CMD_SHUTDOWN };
 	else if (argc > 1 && (
-	    streq1(cmd, "down") ||
-	    streq1(cmd, "up") ||
 	    streq1(cmd, "pause") ||
 	    streq1(cmd, "cont") ||
 	    streq1(cmd, "hup") ||
@@ -545,28 +660,36 @@ init_usage:
 	    streq1(cmd, "1") ||
 	    streq1(cmd, "2"))) {
 		for (int i = 1; i < argc; i++)
-			reqs[maxreq++] = (struct request){ .cmd = cmd[0], .service = normalize(argv[i]) };
+			reqs[maxreq++] = (struct request){
+				.cmd = T_CMD_SIGNAL,
+				.signal = charsig(cmd[0]),
+				.service = normalize(argv[i])
+			};
 	} else if (argc > 1) {
 		for (int i = 1; i < argc; i++) {
 			char *service = normalize(argv[i]);
-			if (streq(cmd, "start"))
-				reqs[maxreq++] = (struct request){ .cmd = 'u', .service = service, .wait = 1 };
+			if (streq1(cmd, "up"))
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_UP, .service = service, .wait = -1 };
+			else if (streq1(cmd, "down"))
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_DOWN, .service = service, .wait = -1 };
+			else if (streq(cmd, "start"))
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_UP, .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-start"))
-				reqs[maxreq++] = (struct request){ .cmd = 'u', .service = service };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_UP, .service = service };
 			else if (streq(cmd, "stop"))
-				reqs[maxreq++] = (struct request){ .cmd = 'd', .service = service, .wait = 1 };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_DOWN, .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-stop"))
-				reqs[maxreq++] = (struct request){ .cmd = 'd', .service = service };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_DOWN, .service = service };
 			else if (streq(cmd, "restart"))
-				reqs[maxreq++] = (struct request){ .cmd = 'r', .service = service, .wait = 1 };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_RESTART, .service = service, .wait = 1 };
 			else if (streq(cmd, "fast-restart") || streq(cmd, "r"))
-				reqs[maxreq++] = (struct request){ .cmd = 'r', .service = service };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_RESTART, .service = service };
 			else if (streq(cmd, "pidof"))
-				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service, .wait = 1 };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_QUERY, .service = service, .wait = 1 };
 			else if (streq(cmd, "list"))
-				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service, .wait = 2 };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_QUERY, .service = service, .wait = 2 };
 			else if (streq(cmd, "check"))
-				reqs[maxreq++] = (struct request){ .cmd = '?', .service = service };
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_QUERY, .service = service };
 			else
 				goto usage;
 		}

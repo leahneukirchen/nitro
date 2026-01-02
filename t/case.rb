@@ -9,16 +9,20 @@ Thread.abort_on_exception = true
 
 ENV["PATH"] = File.realpath("..") + ":" + File.realpath(".") + ":" + ENV["PATH"]
 
+# keep in sync with nitro.h
 STATE = {
-  "A" => "DOWN",
-  "B" => "SETUP",
-  "C" => "STARTING",
-  "D" => "UP",
-  "E" => "ONESHOT",
-  "F" => "SHUTDOWN",
-  "G" => "RESTART",
-  "H" => "FATAL",
-  "I" => "DELAY",
+  "\x01" => "DOWN",
+  "\x02" => "SETUP",
+  "\x03" => "STARTING",
+  "\x04" => "UP",
+  "\x05" => "ONESHOT",
+  "\x06" => "SHUTDOWN",
+  "\x07" => "RESTART",
+  "\x08" => "FATAL",
+  "\x09" => "DELAY",
+}
+TYPE = {
+  "\x65" => "NAME"
 }
 
 def with_fixture(hash, &block)
@@ -91,9 +95,22 @@ def testcase(svdir, timeout=60, &block)
 
     Thread.new {
       loop {
+        # XXX parse SPAT
         data = sock.recvfrom(4096).first
         p [:SOCK, data]
-        queue << [STATE[data[0]], data[1..-1].chomp]
+        msg = []
+        until data.empty?
+          len = data[0,2].unpack("S<").first
+          type = data[2]
+          if STATE[type]
+            msg << STATE[type]
+            msg << data[3, len]
+          else
+            puts "ignoring type #{type}"
+          end
+          data.slice!(0, 3 + len)
+        end
+        queue << msg
       }
     }
 

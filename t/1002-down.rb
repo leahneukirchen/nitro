@@ -24,4 +24,3 @@ EOF_A
     `nitroctl` =~ /UP sv_a/  or raise "not staying up"
   }
 end
-
