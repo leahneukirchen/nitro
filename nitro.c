@@ -1132,8 +1132,8 @@ refresh_log:
 
 		size_t n = strlen(target_name);
 		if (target_name[n-1] == '@')
-			sprn(target_name + n, log_target + sizeof log_target,
-			    "%s", instance ? instance : name);
+			stecpy(target_name + n, log_target + sizeof log_target,
+			    instance ? instance : name);
 
 		services[i].log_out[1] = PENDING_FD;
 		int j = add_service(target_name);
