@@ -217,6 +217,24 @@ reboot can also be triggered by sending `SIGINT` to nitro.
 shutdown can also be triggered by sending `SIGTERM` to nitro, unless
 nitro is used as Linux pid 1.
 
+## Reliable logging
+
+nitro supports reliable per-service logging.  If a service has a
+symlink `log` to another service, or if the service `LOG` exists, the
+standard output of the service is connected to the standard input of the
+logging service.  nitro holds open the pipe so both services can be
+restarted in any order without loss of data in-flight.
+
+A logging service can again have another `log` symlink (and so on);
+this allows you to filter and distribute logs.  Multiple services can
+point to the same log service. ( Note that writes bigger than 4k may be
+interleaved according to POSIX.)
+
+On shutdown, services which are not log services are shut down first.
+
+For capturing logs, consider using programs like s6-log, runit's
+svlogd, or use logger(1) to transfer logs into syslog.
+
 ## nitro as `init` for Linux
 
 nitro is self-contained and can be booted directly as pid 1.
