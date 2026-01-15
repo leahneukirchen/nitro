@@ -1,3 +1,15 @@
+## 0.7 (2026-01-15)
+
+* N.B.: for this release you need to update nitro and nitroctl in
+  lockstep: the new nitroctl will *not* be able to shut down a pre-0.7
+  nitro.  You can kill PID 1 with SIGINT to trigger a reboot.
+* feature: nitro and nitroctl now use an extensible binary protocol
+  which will allow for forward-compatibility (see SPAT.md)
+* feature: nitroctl is more robust in case of rare socket errors
+* feature: log can be a symlink to a service template which is then
+  instantiated with the parameter or the name of the service
+* documentation improvements
+
 ## 0.6 (2025-12-12)
 
 * feature: nitroctl: sort "list" output by service name
