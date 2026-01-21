@@ -56,6 +56,12 @@ enum tags {
 	T_CMD_SIGNAL      = 129,
 };
 
+enum internal_commands {
+	// not used on the wire
+	T_WAIT_UP         = 230,
+	T_WAIT_DOWN       = 231,
+};
+
 static char *
 control_socket()
 {

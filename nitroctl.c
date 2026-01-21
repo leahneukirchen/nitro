@@ -342,7 +342,14 @@ handle_request(int i)
 	int len = strlen(sv);
 	*buf++ = len + !!(reqs[i].cmd == T_CMD_SIGNAL);
 	*buf++ = 0;
-	*buf++ = reqs[i].cmd;
+	switch (reqs[i].cmd) {
+	case T_WAIT_UP:
+	case T_WAIT_DOWN:
+		*buf++ = T_CMD_QUERY;
+		break;
+	default:
+		*buf++ = reqs[i].cmd;
+	}
 	if (reqs[i].cmd == T_CMD_SIGNAL)
 		*buf++ = reqs[i].signal;
 	memcpy(buf, sv, len);
@@ -402,6 +409,18 @@ handle_response(int i)
 			case T_CMD_UP:
 			case T_CMD_DOWN:
 			case T_CMD_RESTART:
+			case T_WAIT_UP:
+			case T_WAIT_DOWN:
+				printf("%s %s\n", proc_state_str(state),
+				    reqs[i].service);
+			}
+	} else if (spat_tag(buf) == T_STATE && spat_len(buf) == 1) {
+		state = buf[3];
+
+		if (vflag)
+			switch (reqs[i].cmd) {
+			case T_WAIT_UP:
+			case T_WAIT_DOWN:
 				printf("%s %s\n", proc_state_str(state),
 				    reqs[i].service);
 			}
@@ -428,6 +447,10 @@ handle_response(int i)
 			buf = spat_skip(buf);
 		}
 		return 0;
+	case T_WAIT_UP:
+		if (state == PROC_FATAL)
+			return -1;
+		/* fallthrough */
 	case T_CMD_UP:
 	case T_CMD_RESTART:
 		if (reqs[i].wait < 0)
@@ -443,6 +466,7 @@ handle_response(int i)
 			return 1;
 		}
 		break;
+	case T_WAIT_DOWN:
 	case T_CMD_DOWN:
 		if (!reqs[i].wait && state == PROC_SHUTDOWN)
 			return 0;
@@ -690,6 +714,10 @@ init_usage:
 				reqs[maxreq++] = (struct request){ .cmd = T_CMD_QUERY, .service = service, .wait = 2 };
 			else if (streq(cmd, "check"))
 				reqs[maxreq++] = (struct request){ .cmd = T_CMD_QUERY, .service = service };
+			else if (streq(cmd, "wait-up"))
+				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_UP, .service = service, .wait = 1 };
+			else if (streq(cmd, "wait-down"))
+				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_DOWN, .service = service, .wait = 1 };
 			else
 				goto usage;
 		}

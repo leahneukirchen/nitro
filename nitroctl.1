@@ -1,4 +1,4 @@
-.Dd October 8, 2025
+.Dd January 21, 2026
 .Dt NITROCTL 1
 .Os
 .Sh NAME
@@ -58,6 +58,18 @@ Request
 .Ar services
 to be restarted and wait for it to be in state
 .Dv RESTART .
+.It Cm wait-up
+Wait for
+.Ar services
+to be in state
+.Dv UP .
+.It Cm wait-down
+Wait for
+.Ar services
+to be in state
+.Dv DOWN
+or
+.Dv FATAL .
 .It Cm pause , Cm cont , Cm hup , Cm alarm , Cm interrupt , Cm quit , Cm term , Cm kill , Cm 1 , Cm 2
 Send the signal to
 .Ar services .
@@ -75,6 +87,15 @@ Request system reboot.
 .It Cm Shutdown
 Request system shutdown.
 .El
+.Pp
+Note that requesting multiple transitions in a single invocation
+only guarantees each service has reached the target state at some point,
+not that all services
+.Em are
+in the target state at the same time when
+.Nm
+exits.
+Requested service state transitions happen concurrently.
 .Pp
 The options are as follows:
 .Bl -tag -width 15n
