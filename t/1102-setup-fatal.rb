@@ -15,5 +15,8 @@ EOF_SETUP
 
     `nitroctl start sv_a`
     $?.exitstatus == 1  or raise "wrong exit code"
+
+    `nitroctl list` =~ /FATAL sv_a/  or raise "wrong nitroctl list output"
+    `nitroctl list sv_a` =~ /FATAL sv_a/  or raise "wrong nitroctl list sv_a output"
   }
 end

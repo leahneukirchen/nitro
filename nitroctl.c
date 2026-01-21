@@ -458,7 +458,7 @@ handle_response(int i)
 			    spat_decode_u32(buf, T_UPTIME, &uptime))
 				;
 			else if (spat_tag(buf) == T_STATE && spat_len(buf) == 1)
-				state = buf[4];
+				state = buf[3];
 
 			buf = spat_skip(buf);
 		}
