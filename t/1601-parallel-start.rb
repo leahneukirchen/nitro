@@ -16,6 +16,10 @@ EOF_C
     `nitroctl -t 3 start sv_a sv_b sv_c`
     $?.exitstatus == 0  or raise "start failed"
 
+    events.poll_for(["UP", "sv_a"])
+    events.poll_for(["UP", "sv_b"])
+    events.poll_for(["UP", "sv_c"])
+
     match_seq?(events, [["STARTING", "sv_b"],
                         ["UP", "sv_a"]])
     match_seq?(events, [["STARTING", "sv_c"],
