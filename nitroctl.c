@@ -667,7 +667,14 @@ init_usage:
 	sockaddr.sun_family = AF_UNIX;
 	strncpy(sockaddr.sun_path, sockpath, sizeof sockaddr.sun_path - 1);
 
-	signal(SIGINT, on_sigint);
+        sigset_t allset;
+        sigfillset(&allset);
+        struct sigaction sa = {
+                .sa_handler = on_sigint,
+                .sa_mask = allset,
+                .sa_flags = 0,
+        };
+	sigaction(SIGINT, &sa, 0);
 
 	if (streq1(cmd, "list") && argc == 1)
 		reqs[maxreq++] = (struct request){ .cmd = T_CMD_LIST };
