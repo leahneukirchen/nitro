@@ -1374,8 +1374,8 @@ notify(int i)
 {
 	char notifybuf[128];
 	unsigned char len = strlen(services[i].name);
-	notifybuf[0] = 0;
-	notifybuf[1] = len;
+	notifybuf[0] = len;
+	notifybuf[1] = 0;
 	notifybuf[2] = services[i].state;
 	stecpy(notifybuf + 3, notifybuf + sizeof notifybuf, services[i].name);
 
