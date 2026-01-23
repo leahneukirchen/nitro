@@ -345,6 +345,7 @@ handle_request(int i)
 	switch (reqs[i].cmd) {
 	case T_WAIT_UP:
 	case T_WAIT_DOWN:
+	case T_WAIT_STARTING:
 		*buf++ = T_CMD_QUERY;
 		break;
 	default:
@@ -447,6 +448,12 @@ handle_response(int i)
 			buf = spat_skip(buf);
 		}
 		return 0;
+	case T_WAIT_STARTING:
+		if (state == PROC_STARTING ||
+		    state == PROC_UP ||
+		    state == PROC_ONESHOT)
+			return 0;
+		return -1;
 	case T_WAIT_UP:
 		if (state == PROC_FATAL)
 			return -1;
@@ -718,6 +725,8 @@ init_usage:
 				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_UP, .service = service, .wait = 1 };
 			else if (streq(cmd, "wait-down"))
 				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_DOWN, .service = service, .wait = 1 };
+			else if (streq(cmd, "wait-starting"))
+				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_STARTING, .service = service, .wait = 1 };
 			else
 				goto usage;
 		}

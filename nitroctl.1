@@ -1,4 +1,4 @@
-.Dd January 21, 2026
+.Dd January 23, 2026
 .Dt NITROCTL 1
 .Os
 .Sh NAME
@@ -70,6 +70,15 @@ to be in state
 .Dv DOWN
 or
 .Dv FATAL .
+.It Cm wait-starting
+Wait for
+.Ar services
+to be in state
+.Dv STARTING
+or
+.Dv UP
+or
+.Dv ONESHOT .
 .It Cm pause , Cm cont , Cm hup , Cm alarm , Cm interrupt , Cm quit , Cm term , Cm kill , Cm 1 , Cm 2
 Send the signal to
 .Ar services .

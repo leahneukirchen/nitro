@@ -13,6 +13,9 @@ EOF_B
     `nitroctl wait-up sv_a`
     $? == 0  or raise "wait-up failed"
 
+    `nitroctl wait-starting sv_a`
+    $? == 0  or raise "wait-starting failed"
+
     pid = spawn("nitroctl", "wait-down", "sv_a", "sv_b")
     sleep 0.5
     Process.wait(pid, Process::WNOHANG) == nil  or "wait-down exited too soon"
@@ -22,11 +25,16 @@ EOF_B
     $? == 0  or raise "wait-down failed"
 
     pid = spawn("nitroctl", "wait-up", "sv_a", "sv_b")
+    pid2 = spawn("nitroctl", "wait-starting", "sv_a")
     sleep 0.5
     Process.wait(pid, Process::WNOHANG) == nil  or "wait-up exited too soon"
+    Process.wait(pid2, Process::WNOHANG) == nil  or "wait-starting exited too soon"
     
     `nitroctl restart sv_a`
     `nitroctl restart sv_b`
+    Process.wait(pid2)
+    $? == 0  or raise "wait-starting failed"
+
     Process.wait(pid)
     $? == 0  or raise "wait-up failed"
   }
