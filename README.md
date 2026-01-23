@@ -159,10 +159,15 @@ write a newline to the pipe (and ideally close it).  Other data can be
 written but is ignored, only the newline is relevant.  Then nitro
 considers the service UP.
 
+This mechanism is compatible with s6 and dinit.
+
 If the file `notification-fd` does not exist, nitro considers
 services to be up after 2 seconds.
 
-This mechanism is compatible with s6 and dinit.
+Alternatively, you can use `nitroctl ready` to mark services up
+explicitly (e.g. from other services).  In this case,
+put a `0` into `notification-fd` to prevent being marked up `UP`
+automatically.
 
 ## Control socket configuration
 
@@ -207,6 +212,8 @@ Where COMMAND is one of:
 - rescan: re-read `/etc/nitro`, start added daemons, stop removed daemons
 - Shutdown: shutdown (poweroff) the system
 - Reboot: reboot the system
+
+See nitroctl(1) for full details.
 
 ## Controlling nitro by signals
 

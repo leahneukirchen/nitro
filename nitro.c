@@ -420,7 +420,7 @@ proc_launch(int i)
 
 	int readypipe[2];
 	int notificationfd = notification_fd(i);
-	if (notificationfd == -1) {
+	if (notificationfd <= 0) {
 		services[i].readypipe = -1;
 	} else {
 		if (pipe2(readypipe, O_NONBLOCK | O_CLOEXEC) < 0) {
@@ -515,7 +515,7 @@ fatal:			// unlikely to go away proble, go fatal
 	if (strcmp(services[i].name, "LOG") == 0)
 		globallog[1] = -globallog[1];
 
-	if (notificationfd != -1)
+	if (notificationfd > 0)
 		close(readypipe[1]);
 
 	services[i].pid = child;
