@@ -16,8 +16,8 @@ case $state in
       return
     fi
     _values "sv command" \
-      'up[request services to be up]' \
-      'down[request services to be down]' \
+      'up[request services to be UP]' \
+      'down[request services to be DOWN]' \
       'pause[send SIGSTOP to services]' \
       'cont[send SIGCONT to services]' \
       'hup[send SIGHUP to services]' \
@@ -33,12 +33,16 @@ case $state in
     _values "sv command" \
       'list[print service status]' \
       {scan,rescan}'[rescan the service list from the file system]' \
-      'start[wait for services to be UP]' \
-      'stop[wait for services to be DOWN]' \
-      'restart[wait for services to be UP after restart]' \
-      'fast-start[wait for services to be STARTING]' \
-      'fast-stop[wait for services to be SHUTDOWN]' \
-      'fast-restart[wait for services to be RESTART]' \
+      'start[start, wait for services to be UP]' \
+      'stop[stop, wait for services to be DOWN]' \
+      'restart[restart, wait for services to be UP]' \
+      'fast-start[start, wait for services to be STARTING]' \
+      'fast-stop[stop, wait for services to be SHUTDOWN]' \
+      'fast-restart[restart, wait for services to be RESTART]' \
+      'ready[mark services to be UP if they are STARTING]' \
+      'wait-up[wait for services to be UP]' \
+      'wait-down[wait for services to be DOWN]' \
+      'wait-starting[wait for services to be STARTING]' \
       'pidof[print PIDs of services]' \
       'check[exit with status 0 if services are running]' \
       'Reboot[reboot the system]' \
