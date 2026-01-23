@@ -512,6 +512,37 @@ handle_response(int i)
 	return -1;  // again
 }
 
+int
+print_events()
+{
+	char notifypath[PATH_MAX];
+	int fd = notifysock("ALL", 0, notifypath);
+
+	ssize_t rd;
+	unsigned char buffer[4096];
+
+	while (!got_sig) {
+		rd = read(fd, buffer, sizeof buffer);
+		if (rd < 0) {
+			if (errno == EINTR)
+				break;
+
+			perror("read");
+			return 111;
+		}
+
+		for (unsigned char *buf = buffer; buf < buffer + rd; buf = spat_skip(buf))
+			if (spat_tag(buf) >= PROC_DOWN &&
+			    spat_tag(buf) <= PROC_DELAY &&
+			    spat_len(buf) > 0)
+				printf("%s %.*s\n", proc_state_str(spat_tag(buf)),
+				    spat_len(buf), buf + 3);
+	}
+
+	close(fd);
+	return 0;
+}
+
 #ifdef INIT_SYSTEM
 
 #ifndef OUR_WTMP
@@ -686,6 +717,8 @@ init_usage:
 		reqs[maxreq++] = (struct request){ .cmd = T_CMD_REBOOT };
 	else if (streq(cmd, "Shutdown"))
 		reqs[maxreq++] = (struct request){ .cmd = T_CMD_SHUTDOWN };
+	else if (streq(cmd, "events"))
+		return print_events();
 	else if (argc > 1 && (
 	    streq1(cmd, "pause") ||
 	    streq1(cmd, "cont") ||
