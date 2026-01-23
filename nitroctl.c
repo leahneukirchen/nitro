@@ -727,6 +727,8 @@ init_usage:
 				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_DOWN, .service = service, .wait = 1 };
 			else if (streq(cmd, "wait-starting"))
 				reqs[maxreq++] = (struct request){ .cmd = T_WAIT_STARTING, .service = service, .wait = 1 };
+			else if (streq(cmd, "ready"))
+				reqs[maxreq++] = (struct request){ .cmd = T_CMD_READY, .service = service, .wait = -1 };
 			else
 				goto usage;
 		}

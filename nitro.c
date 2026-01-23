@@ -1564,6 +1564,7 @@ handle_control_sock()
 	case T_CMD_UP:
 	case T_CMD_DOWN:
 	case T_CMD_RESTART:
+	case T_CMD_READY:
 	{
 		struct stat st;
 
@@ -1572,6 +1573,7 @@ handle_control_sock()
 
 		int i;
 		if ((cmd != T_CMD_DOWN || find_service("SYS") != -1) &&
+		    cmd != T_CMD_READY &&
 		    valid_service_name(sv) &&
 		    stat_slash_to_at(sv, ".", &st) == 0)
 			i = add_service(sv);
@@ -1587,6 +1589,9 @@ handle_control_sock()
 			process_step(i, EVNT_WANT_DOWN);
 		else if (cmd == T_CMD_RESTART)
 			process_step(i, EVNT_WANT_RESTART);
+		else if (cmd == T_CMD_READY &&
+		    services[i].state == PROC_STARTING)
+			process_step(i, EVNT_TIMEOUT);
 
 		notify(i);
 

@@ -58,6 +58,13 @@ Request
 .Ar services
 to be restarted and wait for it to be in state
 .Dv RESTART .
+.It Cm ready
+If
+.Ar services
+are in state
+.Dv STARTING ,
+put them into state
+.Dv UP .
 .It Cm wait-up
 Wait for
 .Ar services

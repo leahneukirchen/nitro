@@ -54,6 +54,7 @@ enum tags {
 	T_CMD_SHUTDOWN    = 127,
 	T_CMD_REBOOT      = 128,
 	T_CMD_SIGNAL      = 129,
+	T_CMD_READY       = 130,
 };
 
 enum internal_commands {
