@@ -517,16 +517,17 @@ print_events()
 {
 	char notifypath[PATH_MAX];
 	int fd = notifysock("ALL", 0, notifypath);
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+	struct pollfd fds[1] = { { .fd = fd, .events = POLLIN } };
 
 	ssize_t rd;
 	unsigned char buffer[4096];
 
-	while (!got_sig) {
+	while (!got_sig && poll(fds, 1, -1) > 0) {
 		rd = read(fd, buffer, sizeof buffer);
 		if (rd < 0) {
-			if (errno == EINTR)
-				break;
-
+			if (errno == EAGAIN)
+				continue;
 			perror("read");
 			return 111;
 		}
@@ -540,6 +541,7 @@ print_events()
 	}
 
 	close(fd);
+	unlink(notifypath);
 	return 0;
 }
 
@@ -698,14 +700,7 @@ init_usage:
 	sockaddr.sun_family = AF_UNIX;
 	strncpy(sockaddr.sun_path, sockpath, sizeof sockaddr.sun_path - 1);
 
-        sigset_t allset;
-        sigfillset(&allset);
-        struct sigaction sa = {
-                .sa_handler = on_sigint,
-                .sa_mask = allset,
-                .sa_flags = 0,
-        };
-	sigaction(SIGINT, &sa, 0);
+	signal(SIGINT, on_sigint);
 
 	if (streq1(cmd, "list") && argc == 1)
 		reqs[maxreq++] = (struct request){ .cmd = T_CMD_LIST };
