@@ -1609,7 +1609,7 @@ handle_control_sock()
 		want_reboot = 1;
 		goto ok;
 	case T_CMD_SIGNAL:
-		if (len != 1)
+		if (len < 2)
 			goto fail;
 		int i = find_service(sv + 1);
 		if (i >= 0 && services[i].pid) {
