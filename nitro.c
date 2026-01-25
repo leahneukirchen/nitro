@@ -820,10 +820,12 @@ process_step(int i, enum process_events ev)
 
 	case EVNT_WANT_DOWN:
 		switch (services[i].state) {
+		case PROC_RESTART:
+			services[i].state = PROC_SHUTDOWN;
+			/* fallthrough */
 		case PROC_SETUP:
 		case PROC_STARTING:
 		case PROC_UP:
-		case PROC_RESTART:
 		case PROC_SHUTDOWN:
 			proc_shutdown(i);
 			break;
