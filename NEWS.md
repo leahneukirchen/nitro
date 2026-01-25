@@ -1,3 +1,10 @@
+## 0.7.1 (2026-01-25)
+
+* bugfix: sending signals to services was broken.
+* bugfix: state change events had invalid message size.
+* bugfix: "nitroctl list ..." and "nitroctl check" decoded a wrong
+  status.
+
 ## 0.7 (2026-01-15)
 
 * N.B.: for this release you need to update nitro and nitroctl in
