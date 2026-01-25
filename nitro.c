@@ -498,7 +498,7 @@ proc_launch(int i)
 			services[i].deadline = 0;
 			break;
 		default:
-fatal:			// unlikely to go away proble, go fatal
+fatal:			// unlikely to go away problem, go fatal
 			services[i].state = PROC_FATAL;
 			services[i].wstatus = -1;
 			services[i].pid = 0;
