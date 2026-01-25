@@ -920,21 +920,21 @@ process_step(int i, enum process_events ev)
 		services[i].timeout = 0;
 		services[i].deadline = 0;
 		switch (services[i].state) {
-		case PROC_STARTING:
-			proc_cleanup(i);
-			if (global_state != GLBL_UP)
-				break;
-			services[i].state = PROC_DELAY;
-			services[i].timeout = DELAY_RESPAWN;
-			services[i].deadline = 0;
-			break;
-
 		case PROC_UP:
-		case PROC_RESTART:
+		case PROC_STARTING:
+		case PROC_RESTART: ;
+			deadline uptime = time_now() - services[i].startstop;
 			proc_cleanup(i);
 			if (global_state != GLBL_UP)
 				break;
-			proc_setup(i);
+			if (uptime < DELAY_RESPAWN) {
+				/* delay too quick restarts */
+				services[i].state = PROC_DELAY;
+				services[i].timeout = DELAY_RESPAWN;
+				services[i].deadline = 0;
+			} else {
+				proc_setup(i);
+			}
 			break;
 
 		case PROC_ONESHOT:
