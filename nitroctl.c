@@ -436,6 +436,8 @@ handle_response(int i)
 		while (buf < bufe) {
 			if (spat_decode_u32(buf, T_NITRO_PID, &u))
 				printf("nitro_pid %d\n", u);
+			else if (spat_decode_u32(buf, T_PID, &u))
+				printf("pid %d\n", u);
 			else if (spat_decode_u32(buf, T_MAX_SERVICE, &u))
 				printf("max_service %d\n", u);
 			else if (spat_decode_u32(buf, T_TOTAL_REAPS, &u))
