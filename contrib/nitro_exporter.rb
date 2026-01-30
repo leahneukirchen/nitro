@@ -25,17 +25,19 @@ class NitroExporter
       }
 
       info = `nitroctl info`
-      if info =~ /^# (\d+) (\d+) (\d+) (\d+)$/
-        r.write %Q|nitro_pid{hostname=#{HOSTNAME_DUMP}} #{$1}\n|
-        r.write %Q|nitro_services{hostname=#{HOSTNAME_DUMP}} #{$2}\n|
-        r.write %Q|nitro_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$3}\n|
-        r.write %Q|nitro_service_reaps_total{hostname=#{HOSTNAME_DUMP}} #{$4}\n|
+      info.each_line(:chomp => true) { |line|
+        next  if line =~ /^#/
+        next  if line =~ /^nitro_pid/
+        key, value = line.split(" ", 2)
+        r.write %Q|nitro_#{key}{hostname=#{HOSTNAME_DUMP}} #{value}\n|
 
-        size = File.stat("/proc/#{$1}/fd").size rescue 0
-        if size > 0
-          r.write %Q|nitro_process_open_fds{hostname=#{HOSTNAME_DUMP}} #{size}\n|
+        if key == "pid"
+          size = File.stat("/proc/#{value}/fd").size rescue 0
+          if size > 0
+            r.write %Q|nitro_process_open_fds{hostname=#{HOSTNAME_DUMP}} #{size}\n|
+          end
         end
-      end
+      }
     end
 
     r.finish
