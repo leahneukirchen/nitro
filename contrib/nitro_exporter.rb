@@ -1,8 +1,7 @@
 #!/usr/bin/ruby
 # nitro_exporter - Prometheus exporter for nitro state
 
-require 'rack'
-require 'rack/handler/thin'
+require 'thin'
 
 class NitroExporter
   HOSTNAME = `hostname -f`.strip
@@ -44,5 +43,5 @@ class NitroExporter
 end
 
 if __FILE__ == $0
-  Rack::Handler::Thin.run(NitroExporter.new, :Port => 9007, :Host => '::')
+  Thin::Server.start('::', 9007, NitroExporter.new)
 end
