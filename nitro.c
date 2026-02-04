@@ -1078,8 +1078,11 @@ add_service(const char *name)
 		services[i].log_in[0] = PENDING_FD;
 
 refresh_log:
-	if (services[i].log_out[1] == PENDING_FD)
+ 	if (services[i].log_out[1] == PENDING_FD)
 		return i;
+
+	services[i].log_out[0] = -1;
+	services[i].log_out[1] = -1;
 
 	char log_target[PATH_MAX];
 	char log_link[PATH_MAX];
@@ -1098,42 +1101,46 @@ refresh_log:
 	if (r < 0) {
 		if (errno == EINVAL)
 			prn(2, "warning: ignoring log, it is not a symlink: %s\n", name);
-		services[i].log_out[0] = -1;
-		services[i].log_out[1] = -1;
-	} else {
-		/* just interpret the last path segment as service name */
-		log_target[r] = 0;
-		char *target_name = strrchr(log_target, '/');
-		if (target_name)
-			target_name++;
+		if (errno == ENOENT &&
+		    strncmp(services[i].name, "LOG@", 4) != 0 &&   // no loops
+		    strcmp(services[i].name, "LOG") != 0 &&        // no loops
+		    stat("LOG@", &st) == 0 &&
+		    S_ISDIR(st.st_mode))
+			stecpy(log_target, log_target + sizeof log_target,
+			    "LOG@");
 		else
-			target_name = log_target;
-
-		size_t n = strlen(target_name);
-		if (target_name[n-1] == '@')
-			stecpy(target_name + n, log_target + sizeof log_target,
-			    instance ? instance : name);
-
-		services[i].log_out[1] = PENDING_FD;
-		int j = add_service(target_name);
-		if (j < 0) {
-			services[i].log_out[0] = -1;
-			services[i].log_out[1] = -1;
 			return i;
-		}
-
-		services[j].seen = 1; /* mark @ service used */
-		if (services[j].log_in[0] == -1) {
-			if (pipe2(services[j].log_in, O_CLOEXEC) < 0) {
-				prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
-				services[j].log_in[0] = -1;
-				services[j].log_in[1] = -1;
-			}
-		}
-
-		services[i].log_out[0] = services[j].log_in[0];
-		services[i].log_out[1] = services[j].log_in[1];
 	}
+
+	/* just interpret the last path segment as service name */
+	log_target[r] = 0;
+	char *target_name = strrchr(log_target, '/');
+	if (target_name)
+		target_name++;
+	else
+		target_name = log_target;
+
+	size_t n = strlen(target_name);
+	if (target_name[n-1] == '@')
+		stecpy(target_name + n, log_target + sizeof log_target,
+		    instance ? instance : name);
+
+	services[i].log_out[1] = PENDING_FD;
+	int j = add_service(target_name);
+	if (j < 0)
+		return i;
+
+	services[j].seen = 1; /* mark @ service used */
+	if (services[j].log_in[0] == -1) {
+		if (pipe2(services[j].log_in, O_CLOEXEC) < 0) {
+			prn(2, "- nitro: can't create log pipe: errno=%d\n", errno);
+			services[j].log_in[0] = -1;
+			services[j].log_in[1] = -1;
+		}
+	}
+
+	services[i].log_out[0] = services[j].log_in[0];
+	services[i].log_out[1] = services[j].log_in[1];
 
 	return i;
 }

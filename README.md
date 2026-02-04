@@ -69,6 +69,8 @@ You may find runit's `chpst` useful when writing `run` scripts.
 
 - `LOG`: this service is used as a logging service for all services
   that don't have a `log` symlink.
+- `LOG@`: this service template is used as a logging service for all
+  services that don't have a `log` symlink.
 - `SYS`: `SYS/setup` is run before other services are brought up.
   You can already use `nitroctl` in `SYS/setup` to bring up services
   in a certain order.
@@ -227,10 +229,11 @@ nitro is used as Linux pid 1.
 ## Reliable logging
 
 nitro supports reliable per-service logging.  If a service has a
-symlink `log` to another service, or if the service `LOG` exists, the
-standard output of the service is connected to the standard input of the
-logging service.  nitro holds open the pipe so both services can be
-restarted in any order without loss of data in-flight.
+symlink `log` to another service, or if the service template `LOG@`
+exists, or if the service `LOG` exists, the standard output of the
+service is connected to the standard input of the logging service.
+nitro holds open the pipe so both services can be restarted in any
+order without loss of data in-flight.
 
 A logging service can again have another `log` symlink (and so on);
 this allows you to filter and distribute logs.  Multiple services can
@@ -241,6 +244,9 @@ On shutdown, services which are not log services are shut down first.
 
 For capturing logs, consider using programs like s6-log, runit's
 svlogd, or use logger(1) to transfer logs into syslog.
+
+If you have both `LOG` and `LOG@`, other services will log to `LOG@`,
+while the `LOG@` instances log to `LOG`.
 
 ## nitro as `init` for Linux
 
