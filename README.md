@@ -58,7 +58,7 @@ can contain several files:
   supervised log processing.
 - `down`, an optional file that causes nitro to not bring up this
   service by default.
-- Service directories ending with '@' are ignored; they can be used
+- Service directories ending with `@` are ignored; they can be used
   for parameterized services.
 - Service names must be shorter than 64 chars, and not contain `/`,
   `,` or newlines.
@@ -102,7 +102,7 @@ Likewise, a symlink `log` -> `../mylogger@foo` will spawn
 Additionally, if `log` directly points to a service template, it is
 instantiated with the parameter of the service, or the name of the
 service.  For example, `sv_a/log` -> `../mylogger@` will use
-`mylogger@sv_a` as a logger, and `sv@/log` -> `../mylogger@' will use
+`mylogger@sv_a` as a logger, and `sv@/log` -> `../mylogger@` will use
 `mylogger@foo` when you start `sv@foo`.
 
 Parametrized services are removed on `rescan` if they are DOWN and not
@@ -174,9 +174,9 @@ automatically.
 nitro uses a single Unix socket for control.  The socket path is
 determined in the following way:
 1. The environment variable NITRO_SOCK, if it is set.
-2. The target of the symlink /etc/nitro.sock, if that link exists.
-3. On Linux, /run/nitro/nitro.sock.
-4. On other operating systems, /var/run/nitro/nitro.sock.
+2. The target of the symlink `/etc/nitro.sock`, if that link exists.
+3. On Linux, `/run/nitro/nitro.sock`.
+4. On other operating systems, `/var/run/nitro/nitro.sock`.
 
 Note that the socket needs to be on a writable file system.
 When used as pid 1, nitro mounts `/run` (on Linux) or the target of
