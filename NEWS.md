@@ -1,3 +1,20 @@
+## 0.8 (2026-03-03)
+
+* feature: add "nitroctl wait-up/wait-down/wait-starting" to wait for
+  services to change state.
+* feature: add "nitroctl ready" to mark services as UP when they are
+  STARTING.  This enables writing your own control loops.
+* feature: services where notification-fd is 0 need to be marked UP
+  manually.
+* feature: support for LOG@ as a templated version of the LOG default logger.
+* feature: you can run "nitroctl down ." in a finish script to prevent
+  automatic restart.
+* feature: manually marked UP services will be delayed by
+  DELAY_RESPAWN if they exit too quickly.
+* feature: add "nitroctl events" to dump all events (mostly for debugging).
+* contrib: nitro_exporter.rb now uses thin 2.0.
+* contrib: zsh completion is updated.
+
 ## 0.7.1 (2026-01-25)
 
 * bugfix: sending signals to services was broken.
