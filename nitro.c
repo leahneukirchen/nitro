@@ -530,6 +530,13 @@ fatal:			// unlikely to go away problem, go fatal
 void
 proc_setup(int i)
 {
+	if (services[i].log_out[1] != -1)
+		for (int j = 0; j < max_service; j++)
+			if (j != i && services[j].log_in[1] == services[i].log_out[1]) {
+				process_step(j, EVNT_WANT_UP);  // start logger
+				break;
+			}
+
 	struct stat st;
 	if (stat_slash_to_at(services[i].name, "setup", &st) < 0 && errno == ENOENT) {
 		services[i].state = PROC_SETUP;
@@ -1127,6 +1134,8 @@ refresh_log:
 		    instance ? instance : name);
 
 	services[i].log_out[1] = PENDING_FD;
+
+	int created = find_service(target_name) < 0;
 	int j = add_service(target_name);
 	if (j < 0)
 		return i;
@@ -1142,6 +1151,11 @@ refresh_log:
 
 	services[i].log_out[0] = services[j].log_in[0];
 	services[i].log_out[1] = services[j].log_in[1];
+
+	if (created) {
+		services[j].state = PROC_DOWN;
+		services[j].timeout = 0;
+	}
 
 	return i;
 }
