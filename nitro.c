@@ -1104,6 +1104,7 @@ refresh_log:
 		if (errno == ENOENT &&
 		    strncmp(services[i].name, "LOG@", 4) != 0 &&   // no loops
 		    strcmp(services[i].name, "LOG") != 0 &&        // no loops
+		    strcmp(services[i].name, "SYS") != 0 &&        // too soon
 		    stat("LOG@", &st) == 0 &&
 		    S_ISDIR(st.st_mode))
 			stecpy(log_target, log_target + sizeof log_target,
