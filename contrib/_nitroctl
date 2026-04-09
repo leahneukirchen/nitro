@@ -2,6 +2,9 @@
 
 # zsh completion for nitroctl
 # Leah Neukirchen <leah@vuxu.org>, public domain
+#
+# To use with "sudo nitroctl", run:
+#   zstyle ':completion:*:nitroctl/*' gain-privileges yes
 
 _arguments \
   '-v[verbose]' \
@@ -55,7 +58,7 @@ case $state in
       ;;
       (*)
         [[ $words[CURRENT] = */* ]] && _directories && ret=0
-        local -a services=( ${${${(f)"$(nitroctl list)"}#* }%% *} )
+        local -a services=( ${${${(f)"$(_call_program -p services nitroctl list 2>/dev/null)"}#* }%% *} )
         _describe -t services "nitro service" services
       ;;
     esac
