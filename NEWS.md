@@ -1,3 +1,9 @@
+## 0.8.1 (2026-04-24)
+
+* feature: loggers are only started when a service will use them.
+* bugfix: LOG@SYS will not be started.
+* contrib: zsh completion supports sudo.
+
 ## 0.8 (2026-03-03)
 
 * feature: add "nitroctl wait-up/wait-down/wait-starting" to wait for
