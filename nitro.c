@@ -1516,7 +1516,7 @@ handle_control_sock()
 		char *reply = replybuf;
 		deadline now = time_now();
 
-		for (int i = 0; i < max_service && replyend - replybuf > 128; i++) {
+		for (int i = 0; i < max_service && replyend - reply > 128; i++) {
 			*reply++ = 0xff;
 			*reply++ = 0xff;
 			*reply++ = T_SERVICE;
